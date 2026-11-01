@@ -53,9 +53,20 @@ def parse_args() -> argparse.Namespace:
 # --------------------------------------------------------------------------- USD
 
 
+def inside(path: str | Path, base: Path) -> bool:
+    """True if `path` resolves to a location inside `base` (downloaded data is untrusted)."""
+    try:
+        return Path(path).resolve().is_relative_to(base.resolve())
+    except (OSError, ValueError):
+        return False
+
+
 def root_usd(asset_dir: Path) -> Path:
     entries = json.loads((asset_dir / ".metadata/com.nvidia.simready.root_usds.json").read_text())["entries"]
-    return asset_dir / entries[0]
+    root = asset_dir / entries[0]
+    if not inside(root, asset_dir):
+        raise RuntimeError(f"root USD outside the asset folder: {entries[0]!r}")
+    return root
 
 
 def write_wrapper(root: Path, tmpdir: Path, info: dict) -> Path:
@@ -106,13 +117,18 @@ def write_wrapper(root: Path, tmpdir: Path, info: dict) -> Path:
 
 
 class ImageCache:
-    def __init__(self) -> None:
+    def __init__(self, asset_dir: Path, info: dict) -> None:
         self.images: dict[tuple[str, str], bpy.types.Image] = {}
+        self.asset_dir = asset_dir
+        self.info = info
 
     def __call__(self, path: str, colorspace: str) -> bpy.types.Image | None:
         key = (path, colorspace)
         if key in self.images:
             return self.images[key]
+        if not inside(path, self.asset_dir):
+            self.info["warnings"].append(f"texture outside the asset folder rejected: {path}")
+            return None
         try:
             img = bpy.data.images.load(path, check_existing=False)
         except RuntimeError:
@@ -125,11 +141,19 @@ class ImageCache:
         return img
 
 
-def process_images(max_res: int, info: dict) -> None:
-    """Downscale file images above max_res and pack everything into the .blend."""
+def process_images(max_res: int, asset_dir: Path, info: dict) -> None:
+    """Downscale file images above max_res and pack everything into the .blend.
+
+    Images whose file lies outside the asset folder (e.g. loaded by the native
+    importer from a crafted absolute path) are removed, never packed.
+    """
     out = []
     for img in list(bpy.data.images):
         if img.source != 'FILE' or img.packed_file:
+            continue
+        if not inside(bpy.path.abspath(img.filepath), asset_dir):
+            info["warnings"].append(f"image outside the asset folder removed: {img.filepath}")
+            bpy.data.images.remove(img)
             continue
         if not Path(bpy.path.abspath(img.filepath)).exists():
             info["warnings"].append(f"missing image file: {img.filepath}")
@@ -229,7 +253,7 @@ def main() -> int:
     t0 = time.time()
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    images = ImageCache()
+    images = ImageCache(asset_dir, info)
     usd_hook.image_loader = images
     usd_hook.report = {"hook": [], "native": []}
     usd_hook.normal_flip_override = None if args.normal_flip == "auto" else args.normal_flip == "on"
@@ -267,7 +291,7 @@ def main() -> int:
     asset = organize(asset_id, info)
 
     t = time.time()
-    process_images(args.max_res, info)
+    process_images(args.max_res, asset_dir, info)
     info["timings"]["textures"] = round(time.time() - t, 2)
 
     tags = [t for t in args.tags.split(",") if t] or [asset_id.split("_")[0]]
