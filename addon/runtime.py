@@ -118,7 +118,6 @@ class Runtime:
             self.message = f"Cannot start the server: {e}"
             return False
         self.started_args = args
-        self.message = ""
         return True
 
     def stop_server(self, timeout: float = 5.0) -> None:

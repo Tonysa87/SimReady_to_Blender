@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "simready_library"
-version = "0.4.0"
+version = "0.4.1"
 name = "NVIDIA SimReady Library"
 tagline = "NVIDIA SimReady assets in the Asset Browser, converted on demand"
 maintainer = "Tonysa87"

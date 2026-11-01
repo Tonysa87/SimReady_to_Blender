@@ -277,12 +277,14 @@ def _tick_inner(p) -> None:
     elif st is None:
         _state["server_seen"] = False
     code = RUNTIME.proc.poll() if RUNTIME.proc is not None else None
-    if code == 2:
-        RUNTIME.message = (f"Port {RUNTIME.port} is used by another program: choose another port "
-                           "and restart Blender")
-    elif (st is None and p.autostart and bpy.app.online_access and not RUNTIME.owns_server()
-          and time.time() - RUNTIME.last_start > 15.0):
-        RUNTIME.start_server(p, server_dir(p))
+    if code == 2 and st is None:
+        RUNTIME.message = (f"Port {RUNTIME.port} is used by another program: retrying every 15 s "
+                           "(or choose another port and restart Blender)")
+    elif st is not None and RUNTIME.message.startswith("Port "):
+        RUNTIME.message = ""
+    if (st is None and p.autostart and bpy.app.online_access and not RUNTIME.owns_server()
+            and time.time() - RUNTIME.last_start > 15.0):
+        RUNTIME.start_server(p, server_dir(p))  # also after a "port in use" exit: the port may be free now
 
     for ev in RUNTIME.take_events():
         if ev.get("type") in ("delivered", "index"):
