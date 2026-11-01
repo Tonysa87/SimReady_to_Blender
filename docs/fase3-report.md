@@ -8,7 +8,7 @@ Il server pubblica **tutti i 2.677 asset** come libreria remota di Blender, con 
 anteprime WebP. Converte ogni asset alla prima richiesta e serve anche conversioni più lunghe
 di 300 s, grazie al keep-alive gzip. Il listing passa la validazione del parser di Blender.
 Il ciclo completo è stato provato con Blender in WSL (anche con GUI) e con curl.
-**Manca la prova sul Blender Windows di Tonysa87** (sezione 6).
+**Verificato sul Blender Windows di Tonysa87** la sera dell'1/11 (sezione 6).
 
 ## 1. Architettura (`simready/server/`)
 
@@ -111,6 +111,12 @@ Nessuna modifica alla libreria in Blender: stesso URL.
 2. Scaricare un asset qualsiasi mai provato (prima conversione: da qualche secondo a qualche minuto),
    trascinarlo nella scena, poi Shift+Refresh: nessun avviso.
 3. I 6 asset della fase 2 risultano "da aggiornare" (convertitore nuovo): è previsto.
+
+Esito (1/11, sera): tutto OK. Motore `engineAssembly_v6_engine_a01`: 829 MB da HF, conversione 125 s,
+334 MB consegnati; materiali corretti, dimensioni al millimetro (pezzo `engine_01_mesh_00`
+0,984 × 1,086 × 0,854 m). Shift+Refresh: solo le pagine cambiate riscaricate, nessun avviso.
+Da migliorare: la barra resta a 0% durante la conversione e la dimensione stimata è quella dei file
+originali (il .blend finale è più piccolo, la barra si ferma presto e salta a "completato").
 
 ## 7. Domande aperte per Tonysa87
 

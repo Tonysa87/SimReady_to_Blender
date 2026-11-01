@@ -13,7 +13,7 @@ un .blend, il server scarica l'asset da HF, lo converte (Blender headless) e lo 
 stessa risposta; poi il listing viene ricaricato con l'hash reale. Un add-on avvierà il server e
 gestirà la libreria. Brief completo: `docs/brief.md`.
 
-Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (manca la prova su Windows) · **4 add-on ⏳** · 5 robustezza · 6 packaging.
+Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificato su Windows) · **4 add-on ⏳** · 5 robustezza · 6 packaging.
 
 ## Stato attuale
 
@@ -80,7 +80,11 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (manca la 
 - Convertitore: opzioni `--root`/`--preview`, metadati condivisi in `simready/common.py`, tolte le
   proprietà `simready_*` dagli asset (regola "solo dati NVIDIA").
 - Scaricati in `cache/raw/`: base/instances di tutti gli asset e payload di 236 asset (~2 GB, non versionati).
-- Server di prova in scratch sulle porte 8780 (lasciato acceso, si può fermare) e 8765 (per Tonysa87).
+- **Verifica su Windows (1/11 sera, Tonysa87)**: 2.677 asset con anteprime; motore `engineAssembly_v6_engine_a01`
+  (829 MB scaricati, 125 s di conversione, keep-alive) e compressore arrivati interi, materiali giusti,
+  dimensioni al mm; Shift+Refresh senza avvisi. Barra ferma a 0% durante la conversione e
+  dimensione stimata troppo alta (normale, da migliorare).
+- Acceso sulla 8765 con `--prefetch-thumbs`; server di scratch 8780 fermato.
 
 ## Domande aperte per Tonysa87
 
@@ -91,13 +95,12 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (manca la 
 
 ## Prossimi passi
 
-1. **Tonysa87, su Windows**: Shift+Refresh della libreria SimReady → 2.677 asset; scaricare e
-   trascinare 2–3 asset nuovi; Shift+Refresh senza avvisi (procedura in `docs/fase3-report.md` §6).
-2. Raccogliere le risposte alle domande aperte.
-3. Fase 4, add-on: avvio del server con il Python di Blender (`sys.executable`, `--parent-pid`),
+1. Raccogliere la risposta sulla copia dei .blend (proposta: accesa di default).
+2. Fase 4, add-on: avvio del server con il Python di Blender (`sys.executable`, `--parent-pid`),
    registrazione unica della libreria con URL `http://127.0.0.1:<porta>/`, preferenze (cartella dati,
    risoluzione, porta, anteprime in background, import Pack/Append), timer su `/_status` → reload.
-4. Verificare se la cache `remote-assets` di Blender segue un'impostazione generale.
+3. Verificare se la cache `remote-assets` di Blender segue un'impostazione generale.
+4. Stima della dimensione nel listing più realistica (texture ridotte) e messaggio "conversione in corso" nell'add-on.
 5. Prima di scrivere l'add-on: proporre il piano a Tonysa87 e fermarsi a fine fase.
 
 ## Come riprendere
