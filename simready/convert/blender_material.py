@@ -193,21 +193,22 @@ class _Builder:
             return
         y = img.location.y
         sock = img.outputs["Color"]
-        if nm.flip_green or nm.flip_red:
+        if nm.flip_red:
+            # The Normal Map node has no red-axis option: invert R by hand (rare).
             sep = self._node("ShaderNodeSeparateColor", -450, y)
             comb = self._node("ShaderNodeCombineColor", -150, y)
             self.link(sock, sep.inputs["Color"])
-            for ch, flip in (("Red", nm.flip_red), ("Green", nm.flip_green), ("Blue", False)):
-                if flip:
-                    inv = self._math("SUBTRACT", -300, y - (40 if ch == "Green" else 0))
-                    inv.inputs[0].default_value = 1.0
-                    self.link(sep.outputs[ch], inv.inputs[1])
-                    self.link(inv.outputs[0], comb.inputs[ch])
-                else:
-                    self.link(sep.outputs[ch], comb.inputs[ch])
+            inv = self._math("SUBTRACT", -300, y)
+            inv.inputs[0].default_value = 1.0
+            self.link(sep.outputs["Red"], inv.inputs[1])
+            self.link(inv.outputs[0], comb.inputs["Red"])
+            self.link(sep.outputs["Green"], comb.inputs["Green"])
+            self.link(sep.outputs["Blue"], comb.inputs["Blue"])
             sock = comb.outputs["Color"]
         nmap = self._node("ShaderNodeNormalMap", 0, y)
         nmap.space = 'TANGENT'
+        # Blender 5.x Normal Map node handles the green-axis convention itself.
+        nmap.convention = 'DIRECTX' if nm.flip_green else 'OPENGL'
         nmap.inputs["Strength"].default_value = nm.strength
         self.link(sock, nmap.inputs["Color"])
         self.link(nmap.outputs["Normal"], self.bsdf.inputs["Normal"])

@@ -76,7 +76,12 @@ Test automatico: `tools/phase1/gui_driver.py` pilota un Blender con interfaccia.
     URL (normalizzato) ma cartelle diverse, ad esempio per uno spazio nel testo, i download
     falliscono con `AssertionError: This code assumes that remote asset libraries do not move on
     the local disk`. Resta così fino al riavvio. L'add-on deve garantire una sola libreria per URL.
-12. Gli URL dei .blend (`?hash=...`) cambiano a ogni nuovo hash, quindi niente cache vecchie.
+12. **Metodo di import al trascinamento** (`ED_fileselect_asset_import_method_get`): comanda
+    il menu "Import Settings" dell'Asset Browser. Solo se è su "Follow Preferences" si usano il
+    metodo preferito dell'asset (metadati) o, in mancanza, quello della libreria. Le texture
+    restano comunque impacchettate nel file di scena, perché il .blend remoto deve essere
+    autosufficiente; si estraggono con File → External Data → Unpack Resources.
+13. Gli URL dei .blend (`?hash=...`) cambiano a ogni nuovo hash, quindi niente cache vecchie.
    Il meta viene richiesto con `?s=<timestamp/60>`.
 
 ## 3. Rischi e note per le fasi successive
