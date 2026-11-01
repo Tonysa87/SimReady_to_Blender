@@ -1,0 +1,23 @@
+schema_version = "1.0.0"
+
+id = "simready_library"
+version = "0.4.0"
+name = "NVIDIA SimReady Library"
+tagline = "NVIDIA SimReady assets in the Asset Browser, converted on demand"
+maintainer = "Tonysa87"
+type = "add-on"
+website = "https://github.com/Tonysa87/SimReady_to_Blender"
+
+tags = ["Import-Export", "Pipeline"]
+
+blender_version_min = "5.2.0"
+
+license = ["SPDX:GPL-3.0-or-later"]
+copyright = ["2026 Tonysa87"]
+
+[permissions]
+network = "Download NVIDIA SimReady assets from Hugging Face"
+files = "Store converted assets and caches in a folder of your choice"
+
+[build]
+paths_exclude_pattern = ["__pycache__/", "*.pyc", "/.git/"]

@@ -131,6 +131,12 @@ class Library:
         self.catalog_paths = self.catalogs.assign(list(self.index.assets))
         self._by_blend = {"/" + blend_relpath(r): r for r in self.index.assets.values()}
 
+    def shutdown(self) -> None:
+        """Stop converters and exit (requested by the add-on)."""
+        log.info("shutdown requested")
+        self.converter.kill_children()
+        os._exit(0)
+
     def snapshot(self) -> tuple[Index, dict]:
         """Index and blend-path map that belong together (an index swap replaces both)."""
         with self.lock:
@@ -284,6 +290,32 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             log.info("GET %s -> %s (%.2fs)%s", self.path, code, time.time() - t0,
                      "" if self.headers.get("X-Blender") else " [no X-Blender]")
+
+    def do_POST(self):
+        """Control commands for the add-on. The custom header cannot be sent by a web page
+        without a CORS preflight, which this server never answers."""
+        self._headers_sent = False
+        path = urllib.parse.urlsplit(self.path).path
+        code = 500
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            if length:
+                self.rfile.read(min(length, 1 << 16))
+            if not self._host_ok() or self.headers.get("X-SimReady-Control") != "1":
+                code = self._send(403, b"forbidden")
+            elif path == "/_control/refresh-index":
+                threading.Thread(target=self.lib.refresh_index, daemon=True, name="index").start()
+                code = self._send(202, b"index refresh started")
+            elif path == "/_control/shutdown":
+                code = self._send(202, b"bye")
+                self.close_connection = True
+                threading.Timer(0.2, self.lib.shutdown).start()
+            else:
+                code = self._send(404, b"not found")
+        except ConnectionError:
+            code = 499
+        finally:
+            log.info("POST %s -> %s", self.path, code)
 
     def _listing(self, path: str) -> int:
         body = self.lib.listing().get(path)
