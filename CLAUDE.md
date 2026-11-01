@@ -8,8 +8,12 @@ Stato del progetto, decisioni e prossimi passi (letti a ogni avvio di sessione):
 
 - Rispondi **in italiano**, in modo semplice e diretto.
 - **Fermati a fine fase**: proponi il piano e aspetta l'ok di Tonysa87 prima di scrivere molto codice.
-- Commit: autore **sempre Tonysa87** (configurato nel repo); Claude solo come
-  `Co-Authored-By`. Push autorizzato verso `origin` (repo privato `Tonysa87/SimReady_to_Blender`).
+- Commit: autore **sempre `Tonysa87 <101409643+Tonysa87@users.noreply.github.com>`** (configurato
+  nel repo); Claude solo come `Co-Authored-By`. Push autorizzato verso `origin`
+  (`Tonysa87/SimReady_to_Blender`, **repo pubblico**).
+- **Niente dati personali nei file versionati e nei commit**: niente nome e cognome, email,
+  percorsi della macchina (usare `<cartella dati>`, `<utente>`, `~`). Quelli servono a Claude:
+  stanno in `CLAUDE.local.md` (non versionato, letto a ogni sessione).
 - **Mai versionare** `cache/` e `out/` (dati NVIDIA e file generati).
 - **Nomi NVIDIA**: niente proprietà aggiunte; asset di un pezzo = oggetto **e mesh** col nome
   dell'asset NVIDIA (cartella); nelle Collection le parti tengono i nomi NVIDIA delle mesh.
