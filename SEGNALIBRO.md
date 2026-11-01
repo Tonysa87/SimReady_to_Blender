@@ -2,7 +2,7 @@
 
 > Ponte tra sessioni di Claude Code: si aggiorna con `/segnalibro` prima di `/clear` o a fine
 > giornata. CLAUDE.md lo importa, quindi viene letto all'inizio di ogni sessione.
-> Ultimo aggiornamento: **1/11/2026, notte** (sessione in autonomia mentre Tonysa87 era fuori).
+> Ultimo aggiornamento: **1/11/2026, tarda sera** (chiusa l'anonimizzazione di FTC; si riparte dalla fase 5).
 
 ## Il progetto in breve
 
@@ -13,7 +13,7 @@ un .blend, il server scarica l'asset da HF, lo converte (Blender headless) e lo 
 stessa risposta; poi il listing viene ricaricato con l'hash reale. Un add-on avvierà il server e
 gestirà la libreria. Brief completo: `docs/brief.md`.
 
-Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificato su Windows) · 4 add-on ✅ (verificato su Windows) · **5 robustezza ⏳** · 5 robustezza · 6 packaging.
+Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificato su Windows) · 4 add-on ✅ (verificato su Windows) · **5 robustezza ⏳ (prossima)** · 6 packaging.
 
 ## Stato attuale
 
@@ -54,6 +54,7 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
     (percorso fisso in `remote_library.cc`/`appdir.cc`), quindi l'add-on crea una junction
     `remote-assets\<hash URL>` → `<cartella dati>\blender-cache`.
 13. Fase 4: Claude sviluppa e audita l'add-on in autonomia, senza approvazione del piano; Tonysa87 lo testa su Windows.
+14. Tarda sera: chiuso il lavoro su FTC, **la prossima sessione prosegue con la fase 5**.
 
 ## Fatti tecnici da non dimenticare
 
@@ -77,40 +78,31 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 - Normal map SimReady = DirectX. Import Pack/Append: comanda il menu "Import Settings" dell'Asset Browser.
 - Dettagli: `docs/fase1-report.md`, `docs/fase3-report.md`, `docs/ricerca-materiali.md`.
 
-## Ultime cose fatte (1/11/2026, sera)
+## Ultime cose fatte (1/11/2026, tarda sera)
 
-- **Pubblicazione (1/11 notte)**: storia riscritta senza dati personali (autore `Tonysa87` noreply),
-  dati locali in `CLAUDE.local.md` (non versionato), LICENSE GPL-3.0, README con riassunto inglese e crediti,
-  repo pubblico nuovo + release v0.4.1. Tonysa87 posterà su Reddit.
-- README del repo tutto in inglese (`d753bb3`). Config git globale = Tonysa87 noreply.
-- Altri repo pubblici (FTC, lichtfeld-zup-view) analizzati: piano di anonimizzazione di FTC fuori dal
-  repo in `~/FTC-anonimizzazione.md` (da eseguire in una sessione aperta in `~/Projects/FTC`).
-
-- Fase 3 verificata da Tonysa87 su Windows (motore 829 MB → 334 MB, materiali e misure giusti).
-- **Add-on 0.4.1 verificato da Tonysa87 su Windows (1/11 sera)**: server avviato da Blender, anteprime in
-  background, pistone convertito in 7 s e listing ricaricato da solo (hash vero, nessun avviso), nessuna
-  console, "Append, editable" → empty genitore + pezzi locali modificabili (Tonysa87 lo tiene così), dopo il
-  riavvio cache di Blender spostata via junction in `simready_cache\blender-cache\`.
-- Nomi: asset di un pezzo = oggetto **e mesh** col nome dell'asset (decisione di Tonysa87, `07d4f4f`).
-- Server: niente copia dei .blend dopo la consegna, stima della dimensione, comandi `/_control/*`.
-- **Add-on (fase 4)**: `addon/`, zip con `tools/build_extension.py` → `dist/simready_library-0.4.0.zip`
-  (copiato anche in `<cartella dati>\`). Report: `docs/fase4-report.md`.
-  Commit `f7018f2`, `7b2def0`.
-- Test GUI Linux 15/15; junction e server provati col Python del Blender Windows di Tonysa87.
-- README: crediti NVIDIA / dataset Hugging Face / CC-BY-4.0 e istruzioni d'installazione.
-- Server WSL spento; cartella di prova ripulita (sviluppo in `simready_dev\dev_files\`, download vecchi e
-  cache di Blender `ef7615a0e6baf832` cancellati con l'ok di Tonysa87). Zip per Tonysa87: `<cartella dati>\simready_library-0.4.1.zip`.
+- Sessione dedicata a un altro progetto: **anonimizzazione del repo pubblico FTC** completata (storia
+  riscritta con autore Tonysa87 noreply, tag e zip delle release ripuliti, verificato su un clone nuovo;
+  i commit locali non pubblicati di FTC restano in locale). Nessuna modifica al codice di questo repo.
+- Restano fuori da questo repo: `lichtfeld-zup-view` (solo nome come autore) e le impostazioni email di
+  GitHub da attivare a mano; note in `~/FTC-anonimizzazione.md`.
+- Stato di SimReady invariato: add-on **0.4.1** verificato su Windows, release v0.4.1 pubblica,
+  repo pulito su `main`. Nessun server acceso in WSL.
 
 ## Domande aperte per Tonysa87
 
 1. Porta 8765 fissa (Claude propone di tenerla); albedo in JPEG (rimandato alla fase 5, da misurare).
-3. Gruppi dei cataloghi da rivedere a occhio nell'Asset Browser.
+2. Gruppi dei cataloghi da rivedere a occhio nell'Asset Browser.
 
 ## Prossimi passi
 
-1. Fase 5 (robustezza): asset enormi, errori di rete,
-   albedo JPEG (misurare), conversione deterministica (stesso hash a parità di input).
-2. Fase 6: repo pubblico (decisione di Tonysa87), file LICENSE GPL, pulizia degli script di sviluppo.
+1. **Fase 5 (robustezza) — si parte da qui** (indicazione di Tonysa87, 1/11 sera). Primo passo: proporre
+   a Tonysa87 il piano della fase 5 e aspettare l'ok. Temi:
+   - asset enormi (tempi, memoria, dimensione dei .blend; keep-alive già pronto);
+   - errori di rete (HF irraggiungibile, rate limit, download interrotti, retry) con messaggi chiari in Blender;
+   - conversione deterministica (stesso hash a parità di input, così il reload non invalida la cache);
+   - albedo in JPEG: misurare il guadagno di spazio e la perdita di qualità prima di decidere.
+2. Fase 6 (packaging): repo pubblico e LICENSE GPL già fatti; restano pulizia degli script di sviluppo,
+   eventuale pubblicazione su Blender Extensions, nuova release.
 
 ## Come riprendere
 
