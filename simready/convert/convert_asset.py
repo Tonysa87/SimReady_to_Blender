@@ -28,9 +28,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from pxr import Sdf, Usd, UsdGeom  # noqa: E402
 
+from simready import common  # noqa: E402
 from simready.convert import usd_hook  # noqa: E402
 
-HF_URL = "https://huggingface.co/datasets/nvidia/simready-assets/tree/main/{}"
 PREVIEW_SIZE = 256
 PHYSICS_VARIANT_OFF = "Disabled"
 
@@ -45,6 +45,8 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--catalog-id", default="")
     ap.add_argument("--tags", default="")
     ap.add_argument("--report", type=Path)
+    ap.add_argument("--root", default="", help="root USD relative to --asset-dir (default: from root_usds.json)")
+    ap.add_argument("--preview", type=Path, help="preview image to embed (default: the NVIDIA .thumbs PNG)")
     ap.add_argument("--no-hook", action="store_true", help="native USD material import only (for comparison)")
     ap.add_argument("--normal-flip", choices=("auto", "on", "off"), default="auto",
                     help="override the MDL flip_tangent_v (for visual tests)")
@@ -62,11 +64,12 @@ def inside(path: str | Path, base: Path) -> bool:
         return False
 
 
-def root_usd(asset_dir: Path) -> Path:
-    entries = json.loads((asset_dir / ".metadata/com.nvidia.simready.root_usds.json").read_text())["entries"]
-    root = asset_dir / entries[0]
+def root_usd(asset_dir: Path, rel: str = "") -> Path:
+    if not rel:
+        rel = json.loads((asset_dir / ".metadata/com.nvidia.simready.root_usds.json").read_text())["entries"][0]
+    root = asset_dir / rel
     if not inside(root, asset_dir):
-        raise RuntimeError(f"root USD outside the asset folder: {entries[0]!r}")
+        raise RuntimeError(f"root USD outside the asset folder: {rel!r}")
     return root
 
 
@@ -233,10 +236,10 @@ def organize(asset_id: str, info: dict) -> bpy.types.ID:
 def set_metadata(id_: bpy.types.ID, asset_id: str, catalog_id: str, tags: list[str], info: dict) -> None:
     id_.asset_mark()
     ad = id_.asset_data
-    ad.author = "NVIDIA"
-    ad.license = "CC-BY-4.0"
-    ad.copyright = "© NVIDIA Corporation"
-    ad.description = f"NVIDIA SimReady asset '{asset_id}'.\n{HF_URL.format(asset_id)}"
+    ad.author = common.AUTHOR
+    ad.license = common.LICENSE
+    ad.copyright = common.COPYRIGHT
+    ad.description = common.asset_description(asset_id)
     if catalog_id:
         ad.catalog_id = catalog_id
     for t in tags:
@@ -282,7 +285,7 @@ def main() -> int:
 
     try:
         with tempfile.TemporaryDirectory(prefix="simready_") as tmp:
-            wrapper = write_wrapper(root_usd(asset_dir), Path(tmp), info)
+            wrapper = write_wrapper(root_usd(asset_dir, args.root), Path(tmp), info)
             t = time.time()
             res = bpy.ops.wm.usd_import(
                 filepath=str(wrapper),
@@ -314,11 +317,10 @@ def main() -> int:
     process_images(args.max_res, asset_dir, info)
     info["timings"]["textures"] = round(time.time() - t, 2)
 
-    tags = [t for t in args.tags.split(",") if t] or [asset_id.split("_")[0]]
+    tags = [t for t in args.tags.split(",") if t] or common.asset_tags(asset_id)
     set_metadata(asset, asset_id, args.catalog_id, tags, info)
-    thumb = asset_dir / Path(json.loads((asset_dir / ".metadata/com.nvidia.simready.root_usds.json")
-                                        .read_text())["entries"][0]).parent / ".thumbs/256x256"
-    set_preview(asset, thumb / (Path(root_usd(asset_dir)).name + ".png"), info)
+    root = root_usd(asset_dir, args.root)
+    set_preview(asset, args.preview or root.parent / ".thumbs/256x256" / (root.name + ".png"), info)
 
     bpy.data.orphans_purge(do_recursive=True)
     info["dimensions_m"] = {o.name: [round(v, 4) for v in o.dimensions] for o in bpy.data.objects}
