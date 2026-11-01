@@ -24,7 +24,9 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 - **Acceso sulla porta 8765** il server nuovo, cartella `<cartella dati>\simready_test\phase3`
   (il vecchio server di fase 2 è stato fermato; la sua cartella `phase2` è intatta).
 - Test: `python3 -m unittest discover -s tests` (43 test; quelli pxr girano col Python di Blender).
-- Repository: privato, https://github.com/Tonysa87/SimReady_to_Blender (`main`), push autorizzato.
+- Repository **pubblico**: https://github.com/Tonysa87/SimReady_to_Blender (`main`), push autorizzato.
+  Release **v0.4.1** con lo zip: https://github.com/Tonysa87/SimReady_to_Blender/releases/tag/v0.4.1.
+  La vecchia storia (con dati personali) resta nel repo privato `SimReady_to_Blender_old_private`.
 
 ## Decisioni di Tonysa87
 
@@ -76,6 +78,10 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 - Dettagli: `docs/fase1-report.md`, `docs/fase3-report.md`, `docs/ricerca-materiali.md`.
 
 ## Ultime cose fatte (1/11/2026, sera)
+
+- **Pubblicazione (1/11 notte)**: storia riscritta senza dati personali (autore `Tonysa87` noreply),
+  dati locali in `CLAUDE.local.md` (non versionato), LICENSE GPL-3.0, README con riassunto inglese e crediti,
+  repo pubblico nuovo + release v0.4.1. Tonysa87 posterà su Reddit.
 
 - Fase 3 verificata da Tonysa87 su Windows (motore 829 MB → 334 MB, materiali e misure giusti).
 - **Add-on 0.4.1 verificato da Tonysa87 su Windows (1/11 sera)**: server avviato da Blender, anteprime in
