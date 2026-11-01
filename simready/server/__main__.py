@@ -13,6 +13,7 @@ import argparse
 import logging
 import logging.handlers
 import os
+import signal
 import sys
 import threading
 import time
@@ -53,11 +54,23 @@ def pid_alive(pid: int) -> bool:
     return True
 
 
+_on_exit = []  # callbacks run before the process exits (stop converter subprocesses)
+
+
+def shutdown(reason: str, code: int = 0) -> None:
+    logging.getLogger("simready.server").info("exiting: %s", reason)
+    for cb in _on_exit:
+        try:
+            cb()
+        except Exception:
+            pass
+    os._exit(code)
+
+
 def watch_parent(pid: int) -> None:
     while pid_alive(pid):
         time.sleep(5)
-    logging.getLogger("simready.server").info("parent process %d gone, exiting", pid)
-    os._exit(0)
+    shutdown(f"parent process {pid} gone")
 
 
 def main(argv=None) -> None:
@@ -71,6 +84,8 @@ def main(argv=None) -> None:
     ap.add_argument("--mirror", type=Path, help="local copy of the dataset metadata at the same revision (dev)")
     ap.add_argument("--revision", help="pin a dataset commit instead of following main")
     ap.add_argument("--no-refresh", action="store_true", help="do not check Hugging Face for a new revision at start")
+    ap.add_argument("--prefetch-thumbs", action="store_true",
+                    help="make all thumbnails in the background (~1.3 GB from HF, ~25 MB on disk)")
     ap.add_argument("--parent-pid", type=int, help="exit when this process (Blender) exits")
     ap.add_argument("--allow-any-client", action="store_true", help="accept /blend/ requests without X-Blender (tests)")
     ap.add_argument("-v", "--verbose", action="store_true")
@@ -96,8 +111,17 @@ def main(argv=None) -> None:
 
     settings = Settings(blender=blender, state_dir=a.state_dir.resolve(), max_res=a.max_res,
                         workers=a.workers, keep_raw=a.keep_raw)
-    lib = Library(settings, HFClient(), mirror=a.mirror, revision=a.revision, refresh=not a.no_refresh)
-    serve(lib, a.port, require_x_blender=not a.allow_any_client)
+    lib = Library(settings, HFClient(), mirror=a.mirror, revision=a.revision, refresh=not a.no_refresh,
+                  prefetch_thumbs=a.prefetch_thumbs)
+    _on_exit.append(lib.converter.kill_children)
+    signal.signal(signal.SIGTERM, lambda *_: shutdown("SIGTERM"))
+    try:
+        serve(lib, a.port, require_x_blender=not a.allow_any_client)
+    except KeyboardInterrupt:
+        shutdown("interrupted")
+    except OSError as e:  # port in use
+        logging.getLogger("simready.server").error("cannot listen on port %d: %s", a.port, e)
+        shutdown("no port", 2)
 
 
 if __name__ == "__main__":

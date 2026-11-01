@@ -245,10 +245,6 @@ def set_metadata(id_: bpy.types.ID, asset_id: str, catalog_id: str, tags: list[s
     for t in tags:
         if t:
             ad.tags.new(t, skip_if_exists=True)
-    meta = info.get("simready_metadata") or {}
-    for key in ("mass", "category", "qcode"):
-        if key in meta:
-            ad[f"simready_{key}"] = meta[key]
 
 
 def set_preview(id_: bpy.types.ID, thumb: Path, info: dict) -> None:

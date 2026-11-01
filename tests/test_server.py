@@ -139,6 +139,9 @@ class _FakeLib:
         self._by_blend = {"/blend/food/food_banana_a01.blend": r}
         self.converter = _FakeConverter(fut)
 
+    def snapshot(self):
+        return self.index, self._by_blend
+
         class S:
             timeout = 30
         self.s = S()
@@ -163,6 +166,7 @@ class KeepAliveTest(unittest.TestCase):
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         self.addCleanup(httpd.shutdown)
         conn = http.client.HTTPConnection("127.0.0.1", httpd.server_address[1], timeout=10)
+        self.addCleanup(conn.close)
         conn.request("GET", "/blend/food/food_banana_a01.blend",
                      headers={"Accept-Encoding": "gzip", "X-Blender": "test"})
         return conn.getresponse()
@@ -185,7 +189,7 @@ class KeepAliveTest(unittest.TestCase):
         threading.Timer(0.4, lambda: fut.set_exception(RuntimeError("boom"))).start()
         resp = self._serve(fut)
         self.assertEqual(resp.status, 200)
-        with self.assertRaises(http.client.IncompleteRead):
+        with self.assertRaises((http.client.IncompleteRead, ConnectionError)):
             raw = resp.read()
             zlib.decompressobj(wbits=31).decompress(raw)  # not reached: chunked body never terminated
 

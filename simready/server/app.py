@@ -23,6 +23,8 @@ import json
 import logging
 import os
 import re
+import socket
+import struct
 import threading
 import time
 import urllib.parse
@@ -43,6 +45,8 @@ log = logging.getLogger("simready.server")
 
 SERVER_VERSION = "0.3"
 EMPTY_STORED_BLOCK = b"\x00\x00\x00\xff\xff"  # non-final, zero-length stored deflate block
+# Blender checks its Cancel button once per 8 KB received: make each keep-alive a bit larger.
+KEEPALIVE = EMPTY_STORED_BLOCK * 1640
 KEEPALIVE_EVERY = 15.0        # seconds between keep-alive blocks (Blender's limit is 300)
 PLAIN_WAIT = 4.0              # wait this long for a quick conversion before switching to gzip
 
@@ -51,7 +55,8 @@ class Library:
     """Everything the handler needs: index, catalogs, converter, thumbnails, listing cache."""
 
     def __init__(self, settings: Settings, hf: HFClient, mirror: Path | None = None,
-                 revision: str | None = None, refresh: bool = True) -> None:
+                 revision: str | None = None, refresh: bool = True, prefetch_thumbs: bool = False) -> None:
+        self.prefetch_thumbs = prefetch_thumbs
         self.s = settings
         self.hf = hf
         self.lock = threading.RLock()
@@ -65,14 +70,22 @@ class Library:
         self.index_status = {"building": False, "done": 0, "total": 0, "error": ""}
         self.thumbs = Thumbnails(hf, settings.state_dir / "thumbs")
         self.converter = Converter(settings, hf, lambda a: self.catalog_paths[a], self.add_event,
-                                   preview_of=lambda rev, rec: self.thumbs.get(rev, rec)[0])
+                                   preview_of=lambda rev, rec: self.thumbs.get(rec.rev or rev, rec)[0])
         self._listing: tuple[int, dict[str, bytes]] | None = None
+        self._first_build = False
         self._by_blend = {}
         self._reindex()
         self.builder = IndexBuilder(hf, self.index_path, mirror=mirror, on_progress=self._index_progress)
         if refresh or not self.index.assets:
             threading.Thread(target=self.refresh_index, kwargs={"revision": revision}, daemon=True,
                              name="index").start()
+        elif prefetch_thumbs:
+            self._start_prefetch()
+
+    def _start_prefetch(self) -> None:
+        idx = self.index
+        threading.Thread(target=self.thumbs.prefetch, args=(idx.revision, list(idx.assets.values())),
+                         kwargs={"stop": lambda: self.index is not idx}, daemon=True, name="thumbs").start()
 
     # ---------------------------------------------------------------- events
 
@@ -101,10 +114,15 @@ class Library:
         self.catalog_paths = self.catalogs.assign(list(self.index.assets))
         self._by_blend = {"/" + blend_relpath(r): r for r in self.index.assets.values()}
 
+    def snapshot(self) -> tuple[Index, dict]:
+        """Index and blend-path map that belong together (an index swap replaces both)."""
+        with self.lock:
+            return self.index, self._by_blend
+
     def _index_progress(self, idx: Index, done: int, total: int) -> None:
         with self.lock:
             self.index_status.update(done=done, total=total)
-            if not self.index.assets and done and done % 200 == 0:  # first build: publish partial listings
+            if self._first_build and done and done % 200 == 0:  # publish partial listings meanwhile
                 self._swap(Index(revision=idx.revision, assets=dict(idx.assets)))
 
     def _swap(self, idx: Index) -> None:
@@ -118,10 +136,13 @@ class Library:
             if self.index_status["building"]:
                 return
             self.index_status.update(building=True, error="")
+            self._first_build = not self.index.assets
         try:
             new = self.builder.refresh(self.index if self.index.assets else None, force=force, revision=revision)
             if new is not self.index:
                 self._swap(new)
+            if self.prefetch_thumbs:
+                self._start_prefetch()
         except Exception as e:  # network down: keep serving the old index
             log.exception("index refresh failed")
             with self.lock:
@@ -129,6 +150,7 @@ class Library:
         finally:
             with self.lock:
                 self.index_status["building"] = False
+                self._first_build = False
 
     # --------------------------------------------------------------- listing
 
@@ -191,6 +213,15 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(b"%x\r\n%s\r\n" % (len(data), data))
             self.wfile.flush()
 
+    def _abort(self) -> None:
+        """Reset the connection (after a started response): the client must see a failure."""
+        self.close_connection = True
+        try:
+            self.connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+            self.connection.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+
     def _host_ok(self) -> bool:
         """Refuse other Host names (DNS rebinding from a web page)."""
         host = (self.headers.get("Host") or "").lower()
@@ -198,7 +229,12 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------------------------------------------------------------- routes
 
+    def end_headers(self):
+        self._headers_sent = True
+        super().end_headers()
+
     def do_GET(self):
+        self._headers_sent = False
         t0, code = time.time(), 500
         path = urllib.parse.unquote(urllib.parse.urlsplit(self.path).path)
         try:
@@ -215,16 +251,19 @@ class Handler(BaseHTTPRequestHandler):
                 code = self._blend(path)
             else:
                 code = self._send(404, b"not found")
-        except (BrokenPipeError, ConnectionResetError):
+        except ConnectionError:  # client gone (incl. Windows' ConnectionAbortedError)
             code = 499
             self.close_connection = True
         except Exception as e:
             log.exception("GET %s", path)
-            self.close_connection = True
-            try:
-                code = self._send(500, str(e).encode()[-300:])
-            except OSError:
-                pass
+            if self._headers_sent:
+                self._abort()  # mid-body: a new status line would corrupt the stream
+            else:
+                self.close_connection = True
+                try:
+                    code = self._send(500, str(e).encode()[-300:])
+                except OSError:
+                    pass
         finally:
             log.info("GET %s -> %s (%.2fs)%s", self.path, code, time.time() - t0,
                      "" if self.headers.get("X-Blender") else " [no X-Blender]")
@@ -239,11 +278,12 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(200, body, "application/json", {"ETag": etag, "Cache-Control": "no-cache"})
 
     def _thumb(self, asset: str) -> int:
-        rec = self.lib.index.assets.get(asset)
+        idx, _ = self.lib.snapshot()
+        rec = idx.assets.get(asset)
         if not rec or not rec.thumb:
             return self._send(404, b"unknown asset")
         try:
-            p, ctype = self.lib.thumbs.get(self.lib.index.revision, rec)
+            p, ctype = self.lib.thumbs.get(rec.rev or idx.revision, rec)
         except Exception as e:
             log.warning("thumbnail %s: %s", asset, e)
             return self._send(502, f"thumbnail failed: {e}".encode()[-300:])
@@ -252,11 +292,12 @@ class Handler(BaseHTTPRequestHandler):
     def _blend(self, path: str) -> int:
         if self.require_x_blender and not self.headers.get("X-Blender"):
             return self._send(403, b"only Blender may request conversions")
-        rec = self.lib._by_blend.get(path)
+        lib = self.lib
+        idx, by_blend = lib.snapshot()
+        rec = by_blend.get(path)
         if not rec:
             return self._send(404, b"unknown asset")
-        lib = self.lib
-        fut = lib.converter.ensure(lib.index.revision, rec)
+        fut = lib.converter.ensure(rec.rev or idx.revision, rec)
         gzip_ok = "gzip" in (self.headers.get("Accept-Encoding") or "")
         try:
             out = fut.result(timeout=PLAIN_WAIT if gzip_ok else lib.s.timeout)
@@ -281,10 +322,10 @@ class Handler(BaseHTTPRequestHandler):
                 out = fut.result(timeout=KEEPALIVE_EVERY)
                 break
             except FutureTimeout:
-                self._chunk(EMPTY_STORED_BLOCK)
+                self._chunk(KEEPALIVE)
             except Exception as e:
                 log.warning("%s: conversion failed during keep-alive, aborting the response: %s", asset, e)
-                self.close_connection = True  # no terminating chunk, no gzip trailer: the client sees an error
+                self._abort()  # no terminating chunk, no gzip trailer: the client sees an error
                 return 502
         with out.open("rb") as f:
             while chunk := f.read(1 << 20):

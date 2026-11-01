@@ -23,7 +23,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePosixPath
 
-from .hf import HFClient, HFError
+from .hf import HFClient
 
 log = logging.getLogger("simready.index")
 
@@ -70,6 +70,7 @@ class AssetRecord:
     mesh_count: int = 0
     confidence: str = "low"
     method: str = ""
+    rev: str = ""                 # dataset commit the files are downloaded from
 
     @property
     def prefix(self) -> str:
@@ -98,7 +99,8 @@ class Index:
         if d.get("format") != INDEX_FORMAT:
             return None
         return cls(revision=d["revision"], last_modified=d.get("last_modified", ""), built=d.get("built", 0),
-                   assets={k: AssetRecord(**v) for k, v in d["assets"].items()},
+                   assets={k: AssetRecord(**{f: v[f] for f in _RECORD_FIELDS if f in v})
+                           for k, v in d["assets"].items()},
                    failed=d.get("failed", {}), complete=d.get("complete", False))
 
     def save(self, path: Path) -> None:
@@ -109,6 +111,9 @@ class Index:
         tmp = path.with_name(path.name + ".tmp")
         tmp.write_text(json.dumps(d, separators=(",", ":")), encoding="utf-8")
         tmp.replace(path)
+
+
+_RECORD_FIELDS = set(AssetRecord.__dataclass_fields__)
 
 
 class Source:
@@ -131,9 +136,13 @@ class Source:
 def build_record(src: Source, asset: str, oid: str) -> AssetRecord:
     from . import structure  # predictor (pxr optional)
 
-    items = json.loads(src.get(asset, BOM, max_bytes=32 << 20))["items"]
+    items = json.loads(src.get(asset, BOM, max_bytes=32 << 20)).get("items")
+    if not isinstance(items, list):
+        raise ValueError("BOM without an item list")
     by_path = {}
     for i in items:
+        if not isinstance(i, dict) or not isinstance(i.get("hash"), dict) or not isinstance(i.get("relative_path"), str):
+            continue
         rel = i.get("relative_path", "")
         sha = (i.get("hash") or {}).get("sha256", "")
         if safe_relpath(rel) and isinstance(i.get("size"), int) and re.fullmatch(r"[0-9a-f]{64}", sha):
@@ -142,15 +151,15 @@ def build_record(src: Source, asset: str, oid: str) -> AssetRecord:
     # asset of the 2026-10 revision); read root_usds.json only when that is ambiguous.
     roots = [p for p in by_path if _TOP_USD.fullmatch(p)]
     if len(roots) != 1:
-        roots = json.loads(src.get(asset, ROOT_USDS, max_bytes=1 << 20))["entries"]
-    root = roots[0] if roots else ""
+        roots = json.loads(src.get(asset, ROOT_USDS, max_bytes=1 << 20)).get("entries")
+    root = roots[0] if isinstance(roots, list) and roots and isinstance(roots[0], str) else ""
     if not safe_relpath(root) or not root.lower().endswith((".usd", ".usda", ".usdc")):
         raise ValueError(f"bad root USD {root!r}")
     if root not in by_path:
         raise ValueError(f"root USD {root!r} not in the BOM")
     files = sorted(v for k, v in by_path.items() if wanted_for_conversion(k, root))
     thumb_rel = str(PurePosixPath(root).parent / ".thumbs/256x256" / (PurePosixPath(root).name + ".png"))
-    rec = AssetRecord(id=asset, oid=oid, root=root, files=files, thumb=by_path.get(thumb_rel),
+    rec = AssetRecord(id=asset, oid=oid, root=root, files=files, rev=src.rev, thumb=by_path.get(thumb_rel),
                       content_digest=hashlib.sha256(json.dumps([[f[0], f[2]] for f in files]).encode()).hexdigest())
 
     bom_items = [{"relative_path": v[0], "size": v[1], "hash": {"sha256": v[2]}} for v in by_path.values()]
@@ -198,10 +207,12 @@ class IndexBuilder:
                     with self.lock:
                         new.assets[a] = rec
                         new.failed.pop(a, None)
-                except (HFError, ValueError, KeyError, TypeError, OSError) as e:
+                except Exception as e:  # one bad asset must never stop the build
                     log.warning("index: %s failed: %s", a, e)
                     with self.lock:
-                        new.failed[a] = str(e)[:300]
+                        new.failed[a] = f"{type(e).__name__}: {e}"[:300]
+                        if a in old:  # keep serving the previous version (its files stay downloadable at rec.rev)
+                            new.assets[a] = old[a]
                 done += 1
                 if done % self.save_every == 0:
                     new.built = time.time()

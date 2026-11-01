@@ -63,6 +63,28 @@ class Thumbnails:
             return self.dir / f"{rec.id}.{rec.thumb[2][:16]}.webp", "image/webp"
         return self.dir / f"{rec.id}.{rec.thumb[2][:16]}.png", "image/png"
 
+    def prefetch(self, rev: str, records, threads: int = 3, stop=None) -> int:
+        """Make every missing thumbnail (background, low priority). Returns how many were made."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        todo = [r for r in records if r.thumb and not self.path_for(r)[0].exists()]
+        log.info("prefetching %d thumbnails", len(todo))
+
+        def one(r):
+            if stop and stop():
+                return 0
+            try:
+                self.get(rev, r)
+                return 1
+            except Exception as e:
+                log.warning("thumbnail %s: %s", r.id, e)
+                return 0
+
+        with ThreadPoolExecutor(threads, thread_name_prefix="thumbs") as ex:
+            made = sum(ex.map(one, todo))
+        log.info("prefetch done: %d thumbnails", made)
+        return made
+
     def get(self, rev: str, rec: AssetRecord) -> tuple[Path, str]:
         """Path and content type of the thumbnail, downloading/reducing it if needed."""
         if not rec.thumb:

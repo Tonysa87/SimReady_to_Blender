@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import logging
 import os
@@ -19,6 +20,7 @@ import re
 import ssl
 import threading
 import time
+import uuid
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -173,6 +175,8 @@ class HFClient:
             out += data
             m = _LINK_NEXT.search(link or "")
             url = m.group(1) if m else ""
+            if url and not url.startswith(HUB + "/"):  # never send the token elsewhere
+                raise HFError(f"unexpected pagination URL {url!r}")
         return out
 
     def file_url(self, rev: str, path: str) -> str:
@@ -188,31 +192,39 @@ class HFClient:
         return data
 
     def download(self, rev: str, path: str, dst: Path, size: int | None = None, sha256: str | None = None,
-                 progress=None) -> int:
-        """Stream `path` to `dst` (verified, atomic). Skips the download if `dst` already matches."""
+                 progress=None, cancel=None) -> int:
+        """Stream `path` to `dst` (verified, atomic). Skips the download if `dst` already matches.
+        `cancel()` returning True stops the transfer (another file of the same job failed)."""
         if dst.exists() and (size is None or dst.stat().st_size == size) and (sha256 is None or sha256_file(dst) == sha256):
             return 0
         dst.parent.mkdir(parents=True, exist_ok=True)
-        part = dst.with_name(dst.name + ".part")
-        for attempt in range(3):
-            h, n = hashlib.sha256(), 0
-            try:
-                with self._open(self.file_url(rev, path), "resolvers") as r, part.open("wb") as f:
-                    while chunk := r.read(1 << 20):
-                        f.write(chunk)
-                        h.update(chunk)
-                        n += len(chunk)
-                        if progress:
-                            progress(len(chunk))
-            except (OSError, TimeoutError) as e:  # connection dropped mid-body
-                if attempt == 2:
-                    raise HFError(f"{path}: {e}") from e
-                continue
-            if (size is not None and n != size) or (sha256 and h.hexdigest() != sha256):
-                part.unlink(missing_ok=True)
-                if attempt == 2:
-                    raise IntegrityError(f"{path}: got {n} bytes, sha256 {h.hexdigest()[:12]}…")
-                continue
-            part.replace(dst)
-            return n
-        raise HFError(f"{path}: download failed")
+        part = dst.with_name(f"{dst.name}.{uuid.uuid4().hex[:8]}.part")  # unique: no two writers share a file
+        try:
+            for attempt in range(3):
+                h, n = hashlib.sha256(), 0
+                try:
+                    with self._open(self.file_url(rev, path), "resolvers") as r, part.open("wb") as f:
+                        while chunk := r.read(1 << 20):
+                            if cancel and cancel():
+                                raise HFError(f"{path}: cancelled")
+                            n += len(chunk)
+                            if size is not None and n > size:
+                                break  # longer than announced: fails the size check below
+                            f.write(chunk)
+                            h.update(chunk)
+                            if progress:
+                                progress(len(chunk))
+                except (urllib.error.URLError, ConnectionError, TimeoutError, http.client.HTTPException) as e:
+                    if attempt == 2:
+                        raise HFError(f"{path}: {e}") from e
+                    continue
+                # other OSErrors (disk full, permissions) are not retried: they propagate
+                if (size is not None and n != size) or (sha256 and h.hexdigest() != sha256):
+                    if attempt == 2:
+                        raise IntegrityError(f"{path}: got {n} bytes, sha256 {h.hexdigest()[:12]}…")
+                    continue
+                part.replace(dst)
+                return n
+            raise HFError(f"{path}: download failed")
+        finally:
+            part.unlink(missing_ok=True)
