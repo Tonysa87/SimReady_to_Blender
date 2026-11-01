@@ -13,6 +13,7 @@ before they are used to build local paths.
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 import logging
@@ -92,9 +93,13 @@ class Index:
 
     @classmethod
     def load(cls, path: Path) -> Index | None:
+        """Read an index (.json, or .json.gz for a shipped seed index)."""
         try:
-            d = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+            raw = path.read_bytes()
+            if raw[:2] == b"\x1f\x8b":
+                raw = gzip.decompress(raw)
+            d = json.loads(raw.decode("utf-8"))
+        except (OSError, ValueError, EOFError):
             return None
         if d.get("format") != INDEX_FORMAT:
             return None

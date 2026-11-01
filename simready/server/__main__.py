@@ -84,6 +84,8 @@ def main(argv=None) -> None:
     ap.add_argument("--mirror", type=Path, help="local copy of the dataset metadata at the same revision (dev)")
     ap.add_argument("--revision", help="pin a dataset commit instead of following main")
     ap.add_argument("--no-refresh", action="store_true", help="do not check Hugging Face for a new revision at start")
+    ap.add_argument("--seed-index", type=Path, help="ready index (.json/.json.gz) used when the state dir has none")
+    ap.add_argument("--check-hours", type=float, default=24, help="look for a new dataset revision every N hours (0 = never)")
     ap.add_argument("--prefetch-thumbs", action="store_true",
                     help="make all thumbnails in the background (~1.3 GB from HF, ~25 MB on disk)")
     ap.add_argument("--parent-pid", type=int, help="exit when this process (Blender) exits")
@@ -112,7 +114,7 @@ def main(argv=None) -> None:
     settings = Settings(blender=blender, state_dir=a.state_dir.resolve(), max_res=a.max_res,
                         workers=a.workers, keep_raw=a.keep_raw)
     lib = Library(settings, HFClient(), mirror=a.mirror, revision=a.revision, refresh=not a.no_refresh,
-                  prefetch_thumbs=a.prefetch_thumbs)
+                  prefetch_thumbs=a.prefetch_thumbs, seed_index=a.seed_index, check_hours=a.check_hours)
     _on_exit.append(lib.converter.kill_children)
     signal.signal(signal.SIGTERM, lambda *_: shutdown("SIGTERM"))
     try:

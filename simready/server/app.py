@@ -55,7 +55,8 @@ class Library:
     """Everything the handler needs: index, catalogs, converter, thumbnails, listing cache."""
 
     def __init__(self, settings: Settings, hf: HFClient, mirror: Path | None = None,
-                 revision: str | None = None, refresh: bool = True, prefetch_thumbs: bool = False) -> None:
+                 revision: str | None = None, refresh: bool = True, prefetch_thumbs: bool = False,
+                 seed_index: Path | None = None, check_hours: float = 24) -> None:
         self.prefetch_thumbs = prefetch_thumbs
         self.s = settings
         self.hf = hf
@@ -63,6 +64,12 @@ class Library:
         self.catalogs = Catalogs.load()
         self.index_path = settings.state_dir / "index" / "index.json"
         self.index: Index = Index.load(self.index_path) or Index()
+        if not self.index.assets and seed_index:  # first start: a ready index, updated incrementally below
+            seed = Index.load(seed_index)
+            if seed and seed.assets:
+                seed.complete = False  # always reconciled with Hugging Face before being trusted as complete
+                self.index = seed
+                log.info("index: seeded with %d assets from %s", len(seed.assets), seed_index)
         self.catalog_paths = self.catalogs.assign(list(self.index.assets))
         self.generation = 1
         self.events: list[dict] = []
@@ -76,11 +83,20 @@ class Library:
         self._by_blend = {}
         self._reindex()
         self.builder = IndexBuilder(hf, self.index_path, mirror=mirror, on_progress=self._index_progress)
-        if refresh or not self.index.assets:
+        if refresh or not self.index.complete:
             threading.Thread(target=self.refresh_index, kwargs={"revision": revision}, daemon=True,
                              name="index").start()
+        if check_hours > 0 and not revision:
+            threading.Thread(target=self._periodic_check, args=(check_hours * 3600,), daemon=True,
+                             name="index-check").start()
         elif prefetch_thumbs:
             self._start_prefetch()
+
+    def _periodic_check(self, every: float) -> None:
+        """Look for a new dataset revision now and then (one API request when nothing changed)."""
+        while True:
+            time.sleep(every)
+            self.refresh_index()
 
     def _start_prefetch(self) -> None:
         idx = self.index
