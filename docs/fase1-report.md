@@ -70,7 +70,13 @@ Test automatico: `tools/phase1/gui_driver.py` pilota un Blender con interfaccia.
      "Asset … doesn't need downloading", e la vista della libreria mostra il globo.
    Il refresh non basta; **riavviare Blender risolve**. Per l'add-on: registrare la libreria una
    volta sola, non toccarla mai durante la sessione e, se l'utente la rimuove, chiedere un riavvio.
-11. Gli URL dei .blend (`?hash=...`) cambiano a ogni nuovo hash, quindi niente cache vecchie.
+11. **Due librerie con lo stesso URL non possono coesistere** (verificato sul Blender Windows di Tonysa87):
+    il downloader Python (`asset_downloader.py`, `_asset_downloaders[url]`) tiene un solo
+    downloader per URL e verifica che la cartella locale non cambi. Se due librerie hanno lo stesso
+    URL (normalizzato) ma cartelle diverse, ad esempio per uno spazio nel testo, i download
+    falliscono con `AssertionError: This code assumes that remote asset libraries do not move on
+    the local disk`. Resta così fino al riavvio. L'add-on deve garantire una sola libreria per URL.
+12. Gli URL dei .blend (`?hash=...`) cambiano a ogni nuovo hash, quindi niente cache vecchie.
    Il meta viene richiesto con `?s=<timestamp/60>`.
 
 ## 3. Rischi e note per le fasi successive
