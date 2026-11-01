@@ -13,7 +13,7 @@ un .blend, il server scarica l'asset da HF, lo converte (Blender headless) e lo 
 stessa risposta; poi il listing viene ricaricato con l'hash reale. Un add-on avvierà il server e
 gestirà la libreria. Brief completo: `docs/brief.md`.
 
-Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificato su Windows) · **4 add-on ⏳** · 5 robustezza · 6 packaging.
+Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificato su Windows) · **4 add-on ⏳ (da provare su Windows)** · 5 robustezza · 6 packaging.
 
 ## Stato attuale
 
@@ -76,21 +76,15 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 
 ## Ultime cose fatte (1/11/2026, sera)
 
-- Server completo in `simready/server/` (commit `978de47`, `27df065`, `d4e4ab4`): client HF con
-  rate limit, indice incrementale, cataloghi a gruppi (`catalogs.json`), anteprime WebP, conversioni
-  single-flight con file per hash, listing paginato, `/_status`, keep-alive gzip.
-- Previsione tipo/nome (`structure.py`, commit `1ce5d05`): 235/236 esatti su conversioni reali.
-- Esperimenti in Blender (`tools/phase3/`): conversione di 330 s scaricata bene; fallimento senza
-  file rotti; casi di mismatch listing/.blend.
-- Revisione avversariale: 10 problemi corretti; value clip USD rimosse (`564c0e4`).
-- Convertitore: opzioni `--root`/`--preview`, metadati condivisi in `simready/common.py`, tolte le
-  proprietà `simready_*` dagli asset (regola "solo dati NVIDIA").
-- Scaricati in `cache/raw/`: base/instances di tutti gli asset e payload di 236 asset (~2 GB, non versionati).
-- **Verifica su Windows (1/11 sera, Tonysa87)**: 2.677 asset con anteprime; motore `engineAssembly_v6_engine_a01`
-  (829 MB scaricati, 125 s di conversione, keep-alive) e compressore arrivati interi, materiali giusti,
-  dimensioni al mm; Shift+Refresh senza avvisi. Barra ferma a 0% durante la conversione e
-  dimensione stimata troppo alta (normale, da migliorare).
-- Acceso sulla 8765 con `--prefetch-thumbs`; server di scratch 8780 fermato.
+- Fase 3 verificata da Tonysa87 su Windows (motore 829 MB → 334 MB, materiali e misure giusti).
+- Nomi: asset di un pezzo = oggetto **e mesh** col nome dell'asset (decisione di Tonysa87, `07d4f4f`).
+- Server: niente copia dei .blend dopo la consegna, stima della dimensione, comandi `/_control/*`.
+- **Add-on (fase 4)**: `addon/`, zip con `tools/build_extension.py` → `dist/simready_library-0.4.0.zip`
+  (copiato anche in `<cartella dati>\`). Report: `docs/fase4-report.md`.
+  Commit `f7018f2`, `7b2def0`.
+- Test GUI Linux 15/15; junction e server provati col Python del Blender Windows di Tonysa87.
+- README: crediti NVIDIA / dataset Hugging Face / CC-BY-4.0 e istruzioni d'installazione.
+- Acceso: server WSL sulla 8765 per Tonysa87 (da spegnere quando prova l'add-on, che avvia il suo).
 
 ## Domande aperte per Tonysa87
 
@@ -99,13 +93,12 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 
 ## Prossimi passi
 
-1. Raccogliere la risposta sulla copia dei .blend (proposta: accesa di default).
-2. Fase 4, add-on: avvio del server con il Python di Blender (`sys.executable`, `--parent-pid`),
-   registrazione unica della libreria con URL `http://127.0.0.1:<porta>/`, preferenze (cartella dati,
-   risoluzione, porta, anteprime in background, import Pack/Append), timer su `/_status` → reload.
-3. Verificare se la cache `remote-assets` di Blender segue un'impostazione generale.
-4. Stima della dimensione nel listing più realistica (texture ridotte) e messaggio "conversione in corso" nell'add-on.
-5. Prima di scrivere l'add-on: proporre il piano a Tonysa87 e fermarsi a fine fase.
+1. **Tonysa87 prova l'add-on su Windows** (spegnere prima il server WSL sulla 8765): installazione,
+   cartella dati su E:, riavvio (migrazione della cache), download con reload automatico,
+   modalità Append modificabile, nessuna finestra di console durante le conversioni.
+2. Correggere quanto emerge dal test; poi fase 5 (robustezza): asset enormi, errori di rete,
+   albedo JPEG (misurare), conversione deterministica (stesso hash a parità di input).
+3. Fase 6: repo pubblico (decisione di Tonysa87), file LICENSE GPL, pulizia degli script di sviluppo.
 
 ## Come riprendere
 
