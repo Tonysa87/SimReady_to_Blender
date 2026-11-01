@@ -5,8 +5,8 @@ Gli asset NVIDIA **SimReady** ([`nvidia/simready-assets`](https://huggingface.co
 libreria remota qualsiasi. Si vedono tutti subito, con anteprime e cataloghi; un asset viene
 scaricato da Hugging Face e **convertito in .blend al momento del download**.
 
-> Stato: **fase 2 completata** (convertitore verificato su asset reali, anche sul Blender Windows).
-> Il server completo (fase 3) e l'add-on (fase 4) sono da fare. Dettagli in `SEGNALIBRO.md`.
+> Stato: **fase 3 completata** (server con tutti i 2.677 asset, da verificare sul Blender Windows).
+> L'add-on (fase 4) è da fare. Dettagli in `SEGNALIBRO.md` e `docs/fase3-report.md`.
 
 ## Come funziona
 
@@ -14,7 +14,7 @@ scaricato da Hugging Face e **convertito in .blend al momento del download**.
 Blender (Asset Browser, libreria remota)
    │  GET _asset-library-meta.json, _v1/*.json, thumbs/*, blend/*.blend?hash=...
    ▼
-Server locale 127.0.0.1:8765 (Python stdlib)
+Server locale 127.0.0.1:8765 (Python di Blender: stdlib + pxr + OpenImageIO)
    ├── listing generato dall'indice NVIDIA (hash "segnaposto" per i .blend non ancora convertiti)
    ├── alla prima richiesta di un .blend: download da Hugging Face → conversione headless → risposta
    └── /_status: l'add-on ricarica il listing con l'hash reale → asset "verificato" in Blender
@@ -36,12 +36,15 @@ La conversione (`simready/convert/convert_asset.py`, eseguita da `blender -b`):
 | Percorso | Contenuto |
 |---|---|
 | `simready/convert/` | convertitore USD → .blend (futuro cuore dell'add-on) |
-| `tests/` | test delle mappature dei materiali (Python puro) |
+| `simready/server/` | server della libreria remota: indice HF, cataloghi, anteprime, conversioni, listing |
+| `tests/` | test di materiali, server e previsione della struttura |
 | `tools/phase1/` | prototipo del meccanismo di libreria remota e test GUI |
 | `tools/phase2/` | conversione batch, render di confronto, test normal map, server di test con asset reali |
+| `tools/phase3/` | esperimenti keep-alive/mismatch in Blender, validazione della previsione |
 | `tools/recon/` | script di ricognizione del dataset Hugging Face |
 | `docs/brief.md` | brief iniziale del progetto |
 | `docs/fase1-report.md` | esito delle fasi 1–2, comportamenti e bug di Blender 5.2, decisioni |
+| `docs/fase3-report.md` | esito della fase 3: server, indice, keep-alive, previsione |
 | `docs/ricerca-materiali.md` | ricerca MDL → Blender, mappatura OmniPBR, fonti |
 | `SEGNALIBRO.md` | stato attuale, ultime cose fatte, prossimi passi |
 | `cache/`, `out/` | dati NVIDIA scaricati e file generati — **non versionati** |
@@ -62,8 +65,9 @@ $B -b --factory-startup --python simready/convert/convert_asset.py -- \
 # Conversione dei 6 asset di prova a Max/2K/1K
 python3 tools/phase2/convert_batch.py
 
-# Server di test con gli asset reali (Blender Windows → URL http://127.0.0.1:8765/)
-python3 tools/phase2/test_server.py --state-dir <cartella> --port 8765 --max-res 2048
+# Server completo (Blender Windows → URL http://127.0.0.1:8765/), col Python di Blender
+PY=~/blender/blender-5.2.2-linux-x64/5.2/python/bin/python3.13
+$PY -s -E -m simready.server --state-dir <cartella> --port 8765 --max-res 2048 --blender $B
 ```
 
 In Blender: *Preferences → File Paths → Asset Libraries → + → Add Remote Asset Library*,

@@ -2,7 +2,7 @@
 
 > Ponte tra sessioni di Claude Code: si aggiorna con `/segnalibro` prima di `/clear` o a fine
 > giornata. CLAUDE.md lo importa, quindi viene letto all'inizio di ogni sessione.
-> Ultimo aggiornamento: **1/11/2026, fine giornata**.
+> Ultimo aggiornamento: **1/11/2026, sera** (sessione in autonomia mentre Tonysa87 era fuori).
 
 ## Il progetto in breve
 
@@ -13,85 +13,100 @@ un .blend, il server scarica l'asset da HF, lo converte (Blender headless) e lo 
 stessa risposta; poi il listing viene ricaricato con l'hash reale. Un add-on avvierà il server e
 gestirà la libreria. Brief completo: `docs/brief.md`.
 
-Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · **3 server completo ⏳** · 4 add-on · 5 robustezza · 6 packaging.
+Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (manca la prova su Windows) · **4 add-on ⏳** · 5 robustezza · 6 packaging.
 
 ## Stato attuale
 
-- **Fase 1 (meccanismo)**: verificata su Linux e sul Blender Windows di Tonysa87. Strada A confermata.
-- **Fase 2 (convertitore)**: `simready/convert/` funziona su 6 asset reali, a Max/2K/1K, in
-  0,6–7 s per asset. Verificata su Windows (armadietto, scaffale): download, materiali e reload OK.
+- **Fase 3 (server)**: `simready/server/` pubblica tutti i 2.677 asset, 254 cataloghi, anteprime
+  WebP; conversione on demand con keep-alive gzip (anche > 300 s). Report: `docs/fase3-report.md`.
+- Gira col **Python incluso in Blender** (pxr, OpenImageIO, numpy, certifi; verificato anche il
+  `python.exe` del Blender Windows di Tonysa87). Nessuna dipendenza esterna.
+- **Acceso sulla porta 8765** il server nuovo, cartella `<cartella dati>\simready_test\phase3`
+  (il vecchio server di fase 2 è stato fermato; la sua cartella `phase2` è intatta).
+- Test: `python3 -m unittest discover -s tests` (43 test; quelli pxr girano col Python di Blender).
 - Repository: privato, https://github.com/Tonysa87/SimReady_to_Blender (`main`), push autorizzato.
-- Test: `python3 -m unittest discover -s tests` (16 test, OK).
 
-## Decisioni di Tonysa87 (1/11/2026)
+## Decisioni di Tonysa87
 
+1/11/2026:
 1. **Tipo di asset misto**: un solo pezzo → Object; più pezzi → Collection con mesh vere.
 2. **Nomi sempre NVIDIA**: nessuna rinomina e nessuna proprietà aggiunta. Object = nome della
    mesh NVIDIA (es. `food_banana_a01_mesh_00`); Collection = nome della cartella; `.001` solo
    dove NVIDIA usa davvero due nomi uguali.
-3. **Risoluzione texture**: menu nelle preferenze dell'add-on Max/2K/1K, per tutti gli asset,
-   riduzione al momento della conversione.
-4. **Progetto compatibile con OpenPBR**: materiali tradotti in una descrizione intermedia con nomi
-   OpenPBR, poi in Principled BSDF (Blender 5.2 non ha ancora un nodo OpenPBR).
-5. **Modalità di import nell'add-on**: "Pack" (default di Blender) oppure "Append, modificabile"
-   (dopo ogni rilascio di un asset SimReady: Make Instances Real + Make Local All, solo sui dati
-   della cache SimReady). Verificato a mano da Tonysa87.
+3. **Risoluzione texture**: menu nelle preferenze dell'add-on Max/2K/1K, per tutti gli asset.
+4. **Progetto compatibile con OpenPBR**: descrizione intermedia con nomi OpenPBR → Principled BSDF.
+5. **Modalità di import nell'add-on**: "Pack" oppure "Append, modificabile" (Make Instances Real +
+   Make Local All, solo sui dati della cache SimReady).
 6. Cache del server di test in `<cartella dati>\simready_test` (in WSL `/mnt/e/...`).
+7. Sessione serale: mandato a Claude di proseguire in autonomia (ricerche, fino a 3 agenti Opus).
+8. Idee di Tonysa87 da realizzare: **indice di partenza** già pronto + controllo periodico delle novità
+   (fatto lato server: `--seed-index`, `--check-hours 24`); **cartella dati scelta nell'add-on**
+   (il server ha già un'unica `--state-dir`).
 
 ## Fatti tecnici da non dimenticare
 
-- Libreria remota: si crea solo con `bpy.ops.preferences.asset_library_add(type='REMOTE', ...)`;
-  `asset_libraries.new()` crea una libreria locale.
-- La cartella di cache di Blender = md5 del **testo dell'URL** (prima della normalizzazione).
-  **Mai modificare o ricreare la libreria durante una sessione**: sia C++ sia Python tengono in
-  memoria la libreria per URL e serve un riavvio di Blender.
-- Drag & drop di un asset non scaricato bloccato da Blender; il download parte dal pulsante.
-- Dopo il download Blender considera l'asset verificato senza controllare; il controllo vero
-  arriva al reload o al riavvio, per questo serve il reload con l'hash reale.
-- Il timeout di 300 s si conta tra un byte e l'altro: la conversione deve produrre il primo byte entro 300 s.
-- Metadati e anteprima **dentro il .blend** devono coincidere con il listing (dopo il download
-  Blender usa quelli del file).
+- Libreria remota: si crea solo con `bpy.ops.preferences.asset_library_add(type='REMOTE', ...)`.
+  Cartella di cache di Blender = md5 del testo dell'URL. **Mai modificare o ricreare la libreria
+  durante una sessione** (serve un riavvio di Blender).
+- Blender scarica **un file alla volta per libreria**, timeout 300 s *tra un byte e l'altro*,
+  e accetta `Content-Encoding: gzip`. Keep-alive = blocco deflate vuoto `00 00 00 ff ff` (ripetuto
+  fino a ~8 KB: Cancel viene controllato ogni 8 KB). Un `flush(Z_SYNC_FLUSH)` ripetuto non emette nulla.
+- Se tipo/nome del listing non coincidono col .blend, il server deve correggere **tipo, nome e hash**
+  (solo l'hash lascia una voce fantasma). Verificato in GUI.
+- Dopo il download Blender considera l'asset verificato senza controllare; il controllo vero arriva
+  al reload o al riavvio, per questo serve il reload con l'hash reale. Metadati e anteprima **dentro
+  il .blend** devono coincidere col listing.
+- Le anteprime nel listing hanno un hash usato solo come chiave di cache (`?hash=`), non verificato.
+- La radice USD è l'unico `.usd(a)` in `simready_usd/` (vero per tutti i 2.677).
+- Rate limit HF anonimo: bucket "api" 500/300 s, "resolvers" 3.000/300 s (header `RateLimit`).
+- Il Python di Blender in WSL non trova i certificati di sistema: usare certifi. Avviare il server
+  con `-s -E -m simready.server` dalla radice del repo (`-I` esclude la cartella corrente).
 - L'import di Blender non passa all'USDHook i materiali dentro istanze USD → il wrapper le de-istanzia.
-- Normal map SimReady = DirectX (test di integrabilità: `tools/phase2/normalmap_convention.py`).
-- Import Pack/Append: comanda il menu "Import Settings" dell'Asset Browser; con "Follow Asset or
-  Preferences" il Blender di Tonysa87 ha usato Pack anche con la libreria su Append (da chiarire).
-- Dettagli e altri bug: `docs/fase1-report.md`; ricerca materiali: `docs/ricerca-materiali.md`.
+- Normal map SimReady = DirectX. Import Pack/Append: comanda il menu "Import Settings" dell'Asset Browser.
+- Dettagli: `docs/fase1-report.md`, `docs/fase3-report.md`, `docs/ricerca-materiali.md`.
 
-## Ultime cose fatte (1/11/2026)
+## Ultime cose fatte (1/11/2026, sera)
 
-- Fasi 1 e 2 complete; README, brief, segnalibro e CLAUDE.md scritti; repo pubblicato su GitHub.
-- Nomi NVIDIA preservati (commit `1aba990`); nodo Normal Map in modalità DirectX.
-- Sicurezza: il convertitore rifiuta texture e USD fuori dalla cartella dell'asset.
-- Lasciato acceso: server di test sulla porta 8765, se la macchina non è stata riavviata
-  (`pgrep -af "^python3 tools/phase2/test_server.py"`).
+- Server completo in `simready/server/` (commit `978de47`, `27df065`, `d4e4ab4`): client HF con
+  rate limit, indice incrementale, cataloghi a gruppi (`catalogs.json`), anteprime WebP, conversioni
+  single-flight con file per hash, listing paginato, `/_status`, keep-alive gzip.
+- Previsione tipo/nome (`structure.py`, commit `1ce5d05`): 235/236 esatti su conversioni reali.
+- Esperimenti in Blender (`tools/phase3/`): conversione di 330 s scaricata bene; fallimento senza
+  file rotti; casi di mismatch listing/.blend.
+- Revisione avversariale: 10 problemi corretti; value clip USD rimosse (`564c0e4`).
+- Convertitore: opzioni `--root`/`--preview`, metadati condivisi in `simready/common.py`, tolte le
+  proprietà `simready_*` dagli asset (regola "solo dati NVIDIA").
+- Scaricati in `cache/raw/`: base/instances di tutti gli asset e payload di 236 asset (~2 GB, non versionati).
+- Server di prova in scratch sulle porte 8780 (lasciato acceso, si può fermare) e 8765 (per Tonysa87).
 
 ## Domande aperte per Tonysa87
 
-1. **Porta 8765 fissa**: va bene? (cambiare porta = nuova cartella di cache in Blender)
-2. **Asset molto grandi** (1–1,8 GB, conversione forse > 300 s): conversione in background con
-   messaggio "riprova", oppure pre-conversione delle categorie scelte?
-3. **Pulizia**: cancellare la vecchia cartella di cache di Blender `6f0c46218f1e3d46` (solo dati
-   di test, compresa la scimmia finta) in `%LOCALAPPDATA%\Blender Foundation\Blender\Cache\remote-assets\`?
-4. Peso dei file: comprimere l'albedo in JPEG? (oggi tutto PNG; scaffale 137 MB)
+1. **Indice di partenza**: nel pacchetto dell'add-on (non in git, dati NVIDIA con attribuzione)?
+2. **Copia dei .blend nel server** (spazio doppio con la cache di Blender): opzione accesa o spenta di default?
+3. Porta 8765 fissa: va bene?
+4. Pulizia della vecchia cartella di cache di Blender `6f0c46218f1e3d46` su Windows?
+5. Albedo in JPEG per ridurre il peso? Gruppi dei cataloghi da rivedere a occhio.
 
-## Prossimi passi (fase 3 — server completo)
+## Prossimi passi
 
-1. Indice da Hugging Face: elenco cartelle (paginazione `Link`), BOM, `root_usds.json`, e
-   `base.usda` per conoscere **in anticipo** tipo (Object/Collection) e nome NVIDIA del datablock.
-   Cache su disco, ricostruzione solo al cambio di revisione HF, backoff sul rate limit (~3000 req/300 s).
-2. Cataloghi dal prefisso (tabella di mapping modificabile, UUID `uuid5` stabili).
-3. Anteprime: ridurre i PNG NVIDIA 1024² a 256² (WebP/PNG), on demand e in cache.
-4. Download filtrato on demand (radice, `payloads/**`, `Textures`/`textures`, LICENSE) con
-   verifica sha256 dal BOM; poi conversione; richieste concorrenti sulla stessa conversione.
-5. `/_status` per l'add-on; versione del convertitore nell'hash segnaposto.
-6. Prima di scrivere molto codice: proporre il piano a Tonysa87 e fermarsi a fine fase.
+1. **Tonysa87, su Windows**: Shift+Refresh della libreria SimReady → 2.677 asset; scaricare e
+   trascinare 2–3 asset nuovi; Shift+Refresh senza avvisi (procedura in `docs/fase3-report.md` §6).
+2. Raccogliere le risposte alle domande aperte.
+3. Fase 4, add-on: avvio del server con il Python di Blender (`sys.executable`, `--parent-pid`),
+   registrazione unica della libreria con URL `http://127.0.0.1:<porta>/`, preferenze (cartella dati,
+   risoluzione, porta, anteprime in background, import Pack/Append), timer su `/_status` → reload.
+4. Verificare se la cache `remote-assets` di Blender segue un'impostazione generale.
+5. Prima di scrivere l'add-on: proporre il piano a Tonysa87 e fermarsi a fine fase.
 
 ## Come riprendere
 
 ```bash
 cd ~/Projects/nvd-sim-ready && git pull
 B=~/blender/blender-5.2.2-linux-x64/blender
-python3 -m unittest discover -s tests
-# server di test per il Blender Windows (URL http://127.0.0.1:8765/)
-nohup python3 tools/phase2/test_server.py --state-dir <cartella dati>/simready_test/phase2 --port 8765 --max-res 2048 &
+PY=~/blender/blender-5.2.2-linux-x64/5.2/python/bin/python3.13
+python3 -m unittest discover -s tests && $PY -s -E -m unittest discover -s tests
+# server per il Blender Windows (URL http://127.0.0.1:8765/); controllare se è già acceso:
+pgrep -af "simready.server --state-dir"
+nohup $PY -s -E -m simready.server --state-dir <cartella dati>/simready_test/phase3 \
+  --port 8765 --max-res 2048 --blender $B > <cartella dati>/simready_test/phase3/stdout.log 2>&1 &
 ```
