@@ -199,6 +199,12 @@ Requisiti emersi dal test, validi per `convert.py`:
      dell'add-on, valido per tutti gli asset: **Max (originale) / 2K / 1K**, con riduzione al
      momento della conversione. Il dataset arriva al massimo a 4K (campione: 1K–4K, alcune a 16 bit).
      Cambiare l'impostazione cambia gli hash, quindi gli asset già scaricati risultano "da aggiornare".
+  3. **Modalità di import nell'add-on (deciso da Tonysa87 l'1/11/2026):** preferenza "Import degli asset
+     SimReady" con due voci. "Pack" lascia il comportamento di Blender. "Append, modificabile": dopo
+     ogni rilascio di un asset SimReady l'add-on esegue Make Instances Real + Make Local (All), solo
+     sui dati che provengono dalla cache della libreria SimReady. Verificato a mano da Tonysa87: dopo i
+     due passaggi l'armadietto è completamente modificabile. Opzione aggiuntiva da valutare:
+     estrarre le texture in una cartella.
 - Decisioni ancora da prendere:
   2. Asset sopra ~300 s di conversione (i più grandi, 1–1,8 GB): conversione in background con
      errore "riprova tra poco", oppure pre-conversione delle categorie scelte?
