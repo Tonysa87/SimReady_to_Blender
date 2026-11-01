@@ -30,9 +30,10 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 
 1/11/2026:
 1. **Tipo di asset misto**: un solo pezzo → Object; più pezzi → Collection con mesh vere.
-2. **Nomi sempre NVIDIA**: nessuna rinomina e nessuna proprietà aggiunta. Object = nome della
-   mesh NVIDIA (es. `food_banana_a01_mesh_00`); Collection = nome della cartella; `.001` solo
-   dove NVIDIA usa davvero due nomi uguali.
+2. **Nomi NVIDIA**, nessuna proprietà aggiunta. Collection = nome della cartella, parti con i nomi
+   NVIDIA delle mesh. **Object (aggiornato la sera dell'1/11): oggetto e mesh = nome dell'asset**
+   (es. `food_banana_a01`), perché 215 asset avevano la mesh `body_01_mesh_00`; il nome NVIDIA
+   della mesh resta nel report di conversione. `.001` solo dove NVIDIA ripete davvero un nome.
 3. **Risoluzione texture**: menu nelle preferenze dell'add-on Max/2K/1K, per tutti gli asset.
 4. **Progetto compatibile con OpenPBR**: descrizione intermedia con nomi OpenPBR → Principled BSDF.
 5. **Modalità di import nell'add-on**: "Pack" oppure "Append, modificabile" (Make Instances Real +
@@ -45,6 +46,11 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 9. **L'indice di partenza sta nel repo** (`simready/server/data/seed_index.json.gz`, 2,6 MB), usato
    di default dal server. Aggiornarlo quando cambia la revisione HF (`tools/phase3/make_seed_index.py`).
 10. Pulizia della vecchia cache `6f0c46218f1e3d46`: autorizzata e fatta (era solo il prototipo di fase 1).
+11. **Niente copia dei .blend nel server** (lo consegna e lo cancella, tiene solo hash/dimensione).
+12. **La cache di Blender va nella cartella scelta dall'utente**: Blender non permette di spostarla
+    (percorso fisso in `remote_library.cc`/`appdir.cc`), quindi l'add-on crea una junction
+    `remote-assets\<hash URL>` → `<cartella dati>\blender-cache`.
+13. Fase 4: Claude sviluppa e audita l'add-on in autonomia, senza approvazione del piano; Tonysa87 lo testa su Windows.
 
 ## Fatti tecnici da non dimenticare
 
@@ -88,9 +94,7 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 
 ## Domande aperte per Tonysa87
 
-1. **Copia dei .blend nel server** (spazio doppio con la cache di Blender): Tonysa87 ha risposto "se
-   GitHub lo permette caricali", probabile equivoco; chiarito in chat, in attesa di risposta.
-2. Porta 8765 fissa (Claude propone di tenerla); albedo in JPEG (rimandato alla fase 5, da misurare).
+1. Porta 8765 fissa (Claude propone di tenerla); albedo in JPEG (rimandato alla fase 5, da misurare).
 3. Gruppi dei cataloghi da rivedere a occhio nell'Asset Browser.
 
 ## Prossimi passi

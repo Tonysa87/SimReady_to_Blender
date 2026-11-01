@@ -38,6 +38,24 @@ def thumb_relpath(rec: AssetRecord) -> str:
     return f"thumbs/{rec.id}.webp"
 
 
+def estimate_size(rec: AssetRecord, max_res: int) -> int:
+    """Rough size of the .blend before converting (only drives Blender's progress bar).
+    Texture file size tells their resolution: big PNGs are 4K and shrink ~3x at 2K."""
+    total = 0
+    for path, size, _ in rec.files:
+        if "/textures/" in path.lower() and path.lower().endswith((".png", ".jpg", ".jpeg")):
+            if max_res and max_res <= 1024:
+                factor = 1.0 if size < 1_500_000 else 0.3 if size < 6_000_000 else 0.1
+            elif max_res and max_res <= 2048:
+                factor = 1.0 if size < 6_000_000 else 0.35
+            else:
+                factor = 1.0
+            total += int(size * factor)
+        elif path.lower().endswith((".usd", ".usdc", ".usda")):
+            total += size
+    return max(total, 1)
+
+
 def build(index: Index, catalog_paths: dict[str, str], converted, max_res: int) -> dict[str, bytes]:
     """URL path -> body. `converted(rec)` returns the state entry or None."""
     assets, files = [], []
@@ -45,7 +63,7 @@ def build(index: Index, catalog_paths: dict[str, str], converted, max_res: int) 
         st = converted(rec)
         id_type, name = (st["id_type"], st["name"]) if st else (rec.id_type, rec.name or rec.id)
         h = st["hash"] if st else placeholder_hash(rec, max_res)
-        size = st["size"] if st else rec.useful_bytes
+        size = st["size"] if st else estimate_size(rec, max_res)
         entry = {
             "name": name, "id_type": id_type, "files": [blend_relpath(rec)],
             "bl_versions": {"min": common.BLENDER_VERSION},

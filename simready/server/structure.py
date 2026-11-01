@@ -98,8 +98,8 @@ def _blender_name(name: str) -> str:
 
 
 def _result(asset_id: str, meshes: list[str], confidence: str, method: str) -> dict:
-    if len(meshes) == 1:
-        id_type, name = "OBJECT", _blender_name(meshes[0])
+    if len(meshes) == 1:  # Object named as the NVIDIA asset; its mesh keeps the NVIDIA mesh name
+        id_type, name = "OBJECT", _blender_name(asset_id)
     else:
         id_type, name = "COLLECTION", _blender_name(asset_id)
     return {"id_type": id_type, "name": name, "mesh_count": len(meshes),

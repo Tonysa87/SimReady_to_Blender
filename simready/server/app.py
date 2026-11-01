@@ -116,7 +116,8 @@ class Library:
         with self.lock:
             return {
                 "server": {"version": SERVER_VERSION, "converter": common.CONVERTER_VERSION,
-                           "max_res": self.s.max_res},
+                           "max_res": self.s.max_res, "pid": os.getpid(), "state_dir": str(self.s.state_dir),
+                           "keep_blend": self.s.keep_blend},
                 "generation": self.generation,
                 "index": {"revision": self.index.revision, "assets": len(self.index.assets),
                           "failed": len(self.index.failed), "complete": self.index.complete, **self.index_status},
@@ -313,18 +314,59 @@ class Handler(BaseHTTPRequestHandler):
         rec = by_blend.get(path)
         if not rec:
             return self._send(404, b"unknown asset")
-        fut = lib.converter.ensure(rec.rev or idx.revision, rec)
+        conv = lib.converter
+        st = conv.current(rec)
+        if st and self.headers.get("If-None-Match") == f'"{st["hash"][:32]}"':
+            return self._not_modified(f'"{st["hash"][:32]}"')  # Blender has it: no reconversion
         gzip_ok = "gzip" in (self.headers.get("Accept-Encoding") or "")
+        plain_until = time.time() + (PLAIN_WAIT if gzip_ok else lib.s.timeout)
+        comp = None  # gzip stream, once the response has started
+        for _ in range(3):  # a file dropped by a concurrent delivery means: convert again
+            fut = conv.ensure(rec.rev or idx.revision, rec)
+            while True:
+                try:
+                    out = fut.result(timeout=KEEPALIVE_EVERY if comp else max(0.0, plain_until - time.time()))
+                    break
+                except FutureTimeout:
+                    if not gzip_ok:
+                        return self._send(504, b"conversion still running, try again")
+                    if comp is None:
+                        comp = self._start_gzip()
+                    else:
+                        self._chunk(KEEPALIVE)
+                except Exception as e:
+                    if comp is not None:
+                        log.warning("%s: conversion failed during keep-alive, aborting the response: %s", rec.id, e)
+                        self._abort()  # no terminating chunk, no gzip trailer: the client sees an error
+                        return 502
+                    return self._send(502, f"conversion failed: {e}".encode()[-500:])
+            if conv.acquire(rec, out):
+                break
+        else:
+            if comp is not None:
+                self._abort()
+                return 503
+            return self._send(503, b"busy, try again")
+        delivered = False
         try:
-            out = fut.result(timeout=PLAIN_WAIT if gzip_ok else lib.s.timeout)
-        except FutureTimeout:
-            return self._blend_keepalive(fut, rec.id)
-        except Exception as e:
-            return self._send(502, f"conversion failed: {e}".encode()[-500:])
-        st = lib.converter.current(rec)
-        return self._send_file(out, "application/x-blender", etag=f'"{st["hash"][:32]}"' if st else None)
+            if comp is None:
+                st = conv.current(rec)
+                code = self._send_file(out, "application/x-blender", etag=f'"{st["hash"][:32]}"' if st else None)
+            else:
+                with out.open("rb") as f:
+                    while chunk := f.read(1 << 20):
+                        self._chunk(comp.compress(chunk))
+                self._chunk(comp.flush())
+                self.wfile.write(b"0\r\n\r\n")
+                self.wfile.flush()
+                code = 200
+            delivered = code == 200
+            return code
+        finally:
+            conv.release(rec, out, delivered)
 
-    def _blend_keepalive(self, fut, asset: str) -> int:
+    def _start_gzip(self):
+        """Start a 200 gzip response now; the body follows when the file exists."""
         self.send_response(200)
         self.send_header("Content-Type", "application/x-blender")
         self.send_header("Content-Encoding", "gzip")
@@ -333,23 +375,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         comp = zlib.compressobj(1, zlib.DEFLATED, 16 + zlib.MAX_WBITS)
         self._chunk(comp.flush(zlib.Z_SYNC_FLUSH))  # gzip header + empty block, byte aligned
-        while True:
-            try:
-                out = fut.result(timeout=KEEPALIVE_EVERY)
-                break
-            except FutureTimeout:
-                self._chunk(KEEPALIVE)
-            except Exception as e:
-                log.warning("%s: conversion failed during keep-alive, aborting the response: %s", asset, e)
-                self._abort()  # no terminating chunk, no gzip trailer: the client sees an error
-                return 502
-        with out.open("rb") as f:
-            while chunk := f.read(1 << 20):
-                self._chunk(comp.compress(chunk))
-        self._chunk(comp.flush())
-        self.wfile.write(b"0\r\n\r\n")
-        self.wfile.flush()
-        return 200
+        return comp
 
 
 class Server(ThreadingHTTPServer):

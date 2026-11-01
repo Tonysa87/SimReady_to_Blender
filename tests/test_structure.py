@@ -119,12 +119,12 @@ class TextFallbackTest(unittest.TestCase):
     def test_single(self):
         f = files(base_usda([("a_mesh_00", "a_mesh_00")]), instances_usda([("a_mesh_00", "a_mesh_00", ["a_mesh_00"])]))
         r = structure._predict_text("thing_a01", f, f"{P}/base.usda")
-        self.assertEqual((r["id_type"], r["name"], r["mesh_count"], r["confidence"]), ("OBJECT", "a_mesh_00", 1, "low"))
+        self.assertEqual((r["id_type"], r["name"], r["mesh_count"], r["confidence"]), ("OBJECT", "thing_a01", 1, "low"))
 
     def test_inner_name(self):
         f = files(base_usda([("obj", "part_mesh_00_1")]), instances_usda([("part_mesh_00_1", "part_mesh_00", ["part_mesh_00"])]))
         r = structure._predict_text("thing_a01", f, f"{P}/base.usda")
-        self.assertEqual(r["name"], "part_mesh_00")
+        self.assertEqual(r["meshes"], ["part_mesh_00"])
 
     def test_multi_and_no_base(self):
         f = files(base_usda([("a", "a"), ("b", "b")]))
@@ -144,7 +144,8 @@ class PxrPredictTest(unittest.TestCase):
                   instances_usda([("thing_mesh_00", "thing_mesh_00", ["thing_mesh_00"])]))
         r = self.predict(f)
         self.assertEqual((r["id_type"], r["name"], r["mesh_count"], r["confidence"]),
-                         ("OBJECT", "thing_mesh_00", 1, "high"), r)
+                         ("OBJECT", "thing_a01", 1, "high"), r)
+        self.assertEqual(r["meshes"], ["thing_mesh_00"])
         self.assertTrue(r["method"].startswith("pxr"))
 
     def test_inner_over_name_and_shared_mesh(self):
@@ -159,7 +160,7 @@ class PxrPredictTest(unittest.TestCase):
     def test_single_instance_with_inner_name(self):
         f = files(base_usda([("obj", "part_mesh_00_1")]),
                   instances_usda([("part_mesh_00_1", "part_mesh_00", ["part_mesh_00"])]))
-        self.assertEqual(self.predict(f)["name"], "part_mesh_00")
+        self.assertEqual(self.predict(f)["meshes"], ["part_mesh_00"])
 
     def test_invisible_guide_and_curves_pruned(self):
         extra = """
@@ -197,7 +198,7 @@ class PxrPredictTest(unittest.TestCase):
         r = self.predict(f)
         self.assertEqual((r["id_type"], r["name"], r["mesh_count"], r["confidence"]), ("COLLECTION", "thing_a01", 2, "low"), r)
         f = files(base_usda([("a_obj", "a_mesh_00")]), None, root=None)
-        self.assertEqual(self.predict(f)["name"], "a_mesh_00")   # /Geometries/<x>/<x> convention
+        self.assertEqual(self.predict(f)["meshes"], ["a_mesh_00"])   # /Geometries/<x>/<x> convention
 
     def test_untrusted_asset_paths_ignored(self):
         extra = """

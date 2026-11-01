@@ -5,7 +5,7 @@ The asset metadata in the listing and inside the converted .blend must match:
 after a download Blender shows what it reads from the file.
 """
 
-CONVERTER_VERSION = "3.0"  # bump when the converter output changes: every asset becomes "updatable"
+CONVERTER_VERSION = "3.1"  # bump when the converter output changes: every asset becomes "updatable"
 BLENDER_VERSION = "5.2"
 AUTHOR = "NVIDIA"
 LICENSE = "CC-BY-4.0"

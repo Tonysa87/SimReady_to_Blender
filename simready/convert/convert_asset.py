@@ -194,8 +194,8 @@ def _collection_of(id_):
 def organize(asset_id: str, info: dict) -> bpy.types.ID:
     """Keep only meshes (unparented, world transform preserved), NVIDIA names untouched.
 
-    One mesh -> Object asset named as the NVIDIA mesh prim; several -> Collection
-    asset named as the NVIDIA asset folder.
+    One mesh -> Object asset, object and mesh data named as the NVIDIA asset (folder);
+    several -> Collection asset named as the folder, parts keep the NVIDIA mesh names.
     """
     scene = bpy.context.scene
     meshes = [o for o in bpy.data.objects if o.type == 'MESH']
@@ -215,6 +215,11 @@ def organize(asset_id: str, info: dict) -> bpy.types.ID:
 
     if len(meshes) == 1:
         ob = meshes[0]
+        info["mesh_name"] = ob.data.name if ob.data else ""  # original NVIDIA mesh prim name (report only)
+        # Named as the NVIDIA asset: mesh names like "body_01_mesh_00" say nothing (Tonysa87, 1/11/2026).
+        ob.name = asset_id
+        if ob.data and ob.data.users == 1:
+            ob.data.name = asset_id
         for c in list(ob.users_collection):
             c.objects.unlink(ob)
         scene.collection.objects.link(ob)

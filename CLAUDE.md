@@ -11,7 +11,8 @@ Stato del progetto, decisioni e prossimi passi (letti a ogni avvio di sessione):
 - Commit: autore **sempre Tonysa87** (configurato nel repo); Claude solo come
   `Co-Authored-By`. Push autorizzato verso `origin` (repo privato `Tonysa87/SimReady_to_Blender`).
 - **Mai versionare** `cache/` e `out/` (dati NVIDIA e file generati).
-- **Nomi NVIDIA intoccabili**: niente rinomine, niente proprietà aggiunte agli oggetti.
+- **Nomi NVIDIA**: niente proprietà aggiunte; asset di un pezzo = oggetto **e mesh** col nome
+  dell'asset NVIDIA (cartella); nelle Collection le parti tengono i nomi NVIDIA delle mesh.
 - Prima di un `/clear` o a fine giornata: aggiorna il segnalibro con `/segnalibro`.
 
 ## Ambiente

@@ -39,6 +39,7 @@ class Settings:
     workers: int = 1             # parallel conversions
     download_threads: int = 4
     keep_raw: bool = False       # keep downloaded USD/textures after a successful conversion
+    keep_blend: bool = False     # keep the .blend after delivering it (Blender keeps its own copy)
     timeout: int = 3600          # per conversion, seconds
 
 
@@ -78,15 +79,15 @@ class State:
         except (OSError, ValueError):
             self.data = {}
 
-    def get(self, rec: AssetRecord, max_res: int, blend_dir: Path) -> dict | None:
-        """The entry if it is current (same content, same converter, file present)."""
+    def get(self, rec: AssetRecord, max_res: int) -> dict | None:
+        """The entry if it is current (same content, same converter). The file itself may be
+        gone (delivered and dropped): the listing still announces the real hash."""
         with self.lock:
             st = self.data.get(f"{rec.id}@{max_res}")
         if not (st and st.get("file") and st.get("content_digest") == rec.content_digest
                 and st.get("converter") == common.CONVERTER_VERSION):
             return None
-        blend = blend_dir / st["file"]
-        return st if blend.is_file() and blend.stat().st_size == st.get("size") else None
+        return st
 
     def put(self, rec: AssetRecord, max_res: int, entry: dict) -> None:
         with self.lock:
@@ -108,6 +109,7 @@ class Converter:
         self.dl_pool = ThreadPoolExecutor(settings.download_threads, thread_name_prefix="download")
         self.jobs: dict[str, Future] = {}
         self.children: set[subprocess.Popen] = set()
+        self.senders: dict[str, int] = {}
         self.progress: dict[str, dict] = {}
         self.lock = threading.Lock()
 
@@ -120,11 +122,46 @@ class Converter:
         return self.s.state_dir / "blend" / f"res{self.s.max_res}" / rec.prefix
 
     def current(self, rec: AssetRecord) -> dict | None:
-        return self.state.get(rec, self.s.max_res, self.blend_dir(rec))
+        """Real hash/size/type/name of the converted asset (for the listing), or None."""
+        return self.state.get(rec, self.s.max_res)
 
     def blend_path(self, rec: AssetRecord) -> Path | None:
+        """The converted file, if it is still on disk."""
         st = self.current(rec)
-        return self.blend_dir(rec) / st["file"] if st else None
+        if not st:
+            return None
+        p = self.blend_dir(rec) / st["file"]
+        try:
+            return p if p.stat().st_size == st.get("size") else None
+        except OSError:
+            return None
+
+    # -------------------------------------------------------------- delivery
+
+    def acquire(self, rec: AssetRecord, path: Path) -> bool:
+        """Mark `path` as being sent; False if it has already been dropped."""
+        with self.lock:
+            if not path.is_file():
+                return False
+            self.senders[rec.id] = self.senders.get(rec.id, 0) + 1
+            return True
+
+    def release(self, rec: AssetRecord, path: Path, delivered: bool) -> None:
+        """End of a send. After a complete delivery the file is dropped (unless keep_blend)
+        once no other request is still sending it."""
+        with self.lock:
+            n = self.senders.get(rec.id, 1) - 1
+            if n > 0:
+                self.senders[rec.id] = n
+            else:
+                self.senders.pop(rec.id, None)
+                if delivered and not self.s.keep_blend:
+                    try:
+                        path.unlink()
+                    except OSError:  # Windows: still open somewhere; dropped at the next delivery
+                        pass
+        if delivered:
+            self.on_event({"type": "delivered", "asset": rec.id})
 
     # ------------------------------------------------------------------ jobs
 

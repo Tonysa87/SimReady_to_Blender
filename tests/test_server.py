@@ -131,6 +131,12 @@ class _FakeConverter:
     def current(self, rec):
         return None
 
+    def acquire(self, rec, path):
+        return True
+
+    def release(self, rec, path, delivered):
+        self.delivered = delivered
+
 
 class _FakeLib:
     def __init__(self, fut):
@@ -145,6 +151,37 @@ class _FakeLib:
         class S:
             timeout = 30
         self.s = S()
+
+
+class DeliveryTest(unittest.TestCase):
+    """Without keep_blend the .blend is dropped after a complete delivery, the listing keeps the hash."""
+
+    def test_drop_after_delivery(self):
+        from simready.server.jobs import Converter, Settings
+        with TemporaryDirectory() as d:
+            events = []
+            conv = Converter(Settings(blender=Path("blender"), state_dir=Path(d)), None, lambda a: "SimReady/X",
+                             events.append)
+            r = rec("food_banana_a01")
+            bdir = conv.blend_dir(r)
+            bdir.mkdir(parents=True)
+            f = bdir / "food_banana_a01.abc.blend"
+            f.write_bytes(b"x" * 10)
+            from simready import common
+            conv.state.put(r, 2048, {"file": f.name, "hash": "d" * 64, "size": 10, "id_type": "OBJECT",
+                                     "name": "n", "content_digest": r.content_digest,
+                                     "converter": common.CONVERTER_VERSION})
+            self.assertEqual(conv.blend_path(r), f)
+            self.assertTrue(conv.acquire(r, f))
+            self.assertTrue(conv.acquire(r, f))          # two concurrent senders
+            conv.release(r, f, delivered=True)
+            self.assertTrue(f.exists())                  # still being sent by the other one
+            conv.release(r, f, delivered=True)
+            self.assertFalse(f.exists())
+            self.assertFalse(conv.acquire(r, f))
+            self.assertIsNone(conv.blend_path(r))        # next request converts again
+            self.assertEqual(conv.current(r)["hash"], "d" * 64)  # listing keeps the real hash
+            self.assertEqual([e["type"] for e in events], ["delivered", "delivered"])
 
 
 class KeepAliveTest(unittest.TestCase):

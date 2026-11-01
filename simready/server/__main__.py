@@ -83,6 +83,7 @@ def main(argv=None) -> None:
     ap.add_argument("--blender", type=Path, default=None)
     ap.add_argument("--workers", type=int, default=1, help="parallel conversions")
     ap.add_argument("--keep-raw", action="store_true", help="keep downloaded USD/textures after conversion")
+    ap.add_argument("--keep-blend", action="store_true", help="keep converted .blend files after delivering them")
     ap.add_argument("--mirror", type=Path, help="local copy of the dataset metadata at the same revision (dev)")
     ap.add_argument("--revision", help="pin a dataset commit instead of following main")
     ap.add_argument("--no-refresh", action="store_true", help="do not check Hugging Face for a new revision at start")
@@ -115,7 +116,7 @@ def main(argv=None) -> None:
         threading.Thread(target=watch_parent, args=(a.parent_pid,), daemon=True).start()
 
     settings = Settings(blender=blender, state_dir=a.state_dir.resolve(), max_res=a.max_res,
-                        workers=a.workers, keep_raw=a.keep_raw)
+                        workers=a.workers, keep_raw=a.keep_raw, keep_blend=a.keep_blend)
     lib = Library(settings, HFClient(), mirror=a.mirror, revision=a.revision, refresh=not a.no_refresh,
                   prefetch_thumbs=a.prefetch_thumbs, seed_index=a.seed_index, check_hours=a.check_hours)
     _on_exit.append(lib.converter.kill_children)
