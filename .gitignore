@@ -1,0 +1,6 @@
+# Downloaded dataset files and generated output: never commit
+cache/
+out/
+__pycache__/
+*.pyc
+*.blend1
