@@ -302,6 +302,11 @@ def _link_blender_cache() -> None:
         p = prefs()
         if p is None:
             return
+        if not p.data_dir:
+            # Only once the user has chosen a folder: otherwise Blender's cache would be moved
+            # into the default folder first and left behind when a real one is chosen.
+            _state["cache"] = ("", "Choose a Data Folder to keep Blender's downloads there too")
+            return
         url = library.url_for(p.port)
         link = cache_link.library_cache_dir(url)
         _state["cache"] = cache_link.ensure(link, data_dir(p) / cache_link.LINK_DIRNAME)
