@@ -75,7 +75,7 @@ def root_usd(asset_dir: Path, rel: str = "") -> Path:
 
 def write_wrapper(root: Path, tmpdir: Path, info: dict) -> Path:
     """A tiny layer referencing the asset with all physics variants disabled."""
-    src = Usd.Stage.Open(str(root))
+    src = Usd.Stage.Open(str(root), Usd.Stage.LoadNone)  # metadata only: no physics payloads
     dp = src.GetDefaultPrim()
     info["stage"] = {
         "defaultPrim": dp.GetName(),
