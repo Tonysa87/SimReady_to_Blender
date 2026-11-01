@@ -81,7 +81,12 @@ Test automatico: `tools/phase1/gui_driver.py` pilota un Blender con interfaccia.
     metodo preferito dell'asset (metadati) o, in mancanza, quello della libreria. Le texture
     restano comunque impacchettate nel file di scena, perché il .blend remoto deve essere
     autosufficiente; si estraggono con File → External Data → Unpack Resources.
-13. Gli URL dei .blend (`?hash=...`) cambiano a ogni nuovo hash, quindi niente cache vecchie.
+13. **Da verificare (fase 4)**: sul Blender di Tonysa87, con libreria su Append e Asset Browser su
+    "Follow Preferences", l'armadietto risulta importato come Pack. Il codice letto
+    (`get_import_method` → `PreferencesRemoteAssetLibrary::import_method`) farebbe prevedere Append.
+    Procedura consigliata per gli asset composti già importati come istanza:
+    Object → Apply → "Instance Empty to Collection" (oppure "Make Instances Real").
+14. Gli URL dei .blend (`?hash=...`) cambiano a ogni nuovo hash, quindi niente cache vecchie.
    Il meta viene richiesto con `?s=<timestamp/60>`.
 
 ## 3. Rischi e note per le fasi successive
