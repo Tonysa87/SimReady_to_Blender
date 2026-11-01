@@ -19,7 +19,7 @@ import threading
 import time
 from pathlib import Path
 
-from .app import Library, serve
+from .app import Library, bind, serve
 from .hf import HFClient
 from .jobs import Settings
 
@@ -95,6 +95,7 @@ def main(argv=None) -> None:
     ap.add_argument("--parent-pid", type=int, help="exit when this process (Blender) exits")
     ap.add_argument("--allow-any-client", action="store_true", help="accept /blend/ requests without X-Blender (tests)")
     ap.add_argument("-v", "--verbose", action="store_true")
+    ap.add_argument("--quiet", action="store_true", help="log to logs/server.log only (not to stderr)")
     a = ap.parse_args(argv)
 
     a.state_dir.mkdir(parents=True, exist_ok=True)
@@ -104,8 +105,8 @@ def main(argv=None) -> None:
     root.setLevel(logging.DEBUG if a.verbose else logging.INFO)
     fh = logging.handlers.RotatingFileHandler(a.state_dir / "logs/server.log", maxBytes=5 << 20, backupCount=3,
                                               encoding="utf-8")
-    sh = logging.StreamHandler()
-    for h in (fh, sh):
+    handlers = [fh] if a.quiet else [fh, logging.StreamHandler()]
+    for h in handlers:
         h.setFormatter(fmt)
         root.addHandler(h)
 
@@ -115,6 +116,12 @@ def main(argv=None) -> None:
     if a.parent_pid:
         threading.Thread(target=watch_parent, args=(a.parent_pid,), daemon=True).start()
 
+    try:
+        httpd = bind(a.port)
+    except OSError as e:  # port in use: exit code 2 tells the add-on
+        logging.getLogger("simready.server").error("cannot listen on port %d: %s", a.port, e)
+        sys.exit(2)
+
     settings = Settings(blender=blender, state_dir=a.state_dir.resolve(), max_res=a.max_res,
                         workers=a.workers, keep_raw=a.keep_raw, keep_blend=a.keep_blend)
     lib = Library(settings, HFClient(), mirror=a.mirror, revision=a.revision, refresh=not a.no_refresh,
@@ -122,12 +129,9 @@ def main(argv=None) -> None:
     _on_exit.append(lib.converter.kill_children)
     signal.signal(signal.SIGTERM, lambda *_: shutdown("SIGTERM"))
     try:
-        serve(lib, a.port, require_x_blender=not a.allow_any_client)
+        serve(lib, httpd, require_x_blender=not a.allow_any_client)
     except KeyboardInterrupt:
         shutdown("interrupted")
-    except OSError as e:  # port in use
-        logging.getLogger("simready.server").error("cannot listen on port %d: %s", a.port, e)
-        shutdown("no port", 2)
 
 
 if __name__ == "__main__":

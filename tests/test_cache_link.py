@@ -71,6 +71,32 @@ class CacheLinkTest(unittest.TestCase):
         self.assertTrue((self.target / "blend" / "x.blend").exists())
         self.assertFalse(pending.exists())
 
+    def test_old_cache_wins_over_partial_copy(self):
+        (self.link / "blend").mkdir(parents=True)
+        (self.link / "blend" / "big.blend").write_bytes(b"A" * 1000)
+        (self.target / "blend").mkdir(parents=True)
+        (self.target / "blend" / "big.blend").write_bytes(b"A" * 10)   # leftover of an interrupted copy
+        (self.target / "blend" / "x.blend.simready-part").write_bytes(b"p")
+        self.assertEqual(cl.ensure(self.link, self.target)[0], "moved")
+        self.assertEqual(len((self.target / "blend" / "big.blend").read_bytes()), 1000)
+
+    def test_link_failure_restores_the_cache(self):
+        (self.link / "blend").mkdir(parents=True)
+        (self.link / "blend" / "keep.blend").write_bytes(b"k")
+        orig = cl._make_link
+
+        def boom(link, target):
+            raise OSError("unsupported drive")
+        cl._make_link = boom
+        try:
+            state, _ = cl.ensure(self.link, self.target)
+        finally:
+            cl._make_link = orig
+        self.assertEqual(state, "error")
+        self.assertFalse(cl.is_link(self.link))
+        self.assertTrue((self.link / "blend" / "keep.blend").exists())
+        self.assertFalse(self.link.with_name(self.link.name + cl.MIGRATING).exists())
+
     def test_remove_link_keeps_target(self):
         cl.ensure(self.link, self.target)
         (self.target / "keep.blend").write_bytes(b"k")

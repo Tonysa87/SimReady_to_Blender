@@ -47,7 +47,8 @@ def _child_kwargs() -> dict:
     """Converter processes: own process group (Linux) so they can be killed together."""
     import os
     if os.name == "nt":
-        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+        # blender.exe is a console program: without CREATE_NO_WINDOW every conversion opens a console.
+        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW}
     return {"start_new_session": True}
 
 

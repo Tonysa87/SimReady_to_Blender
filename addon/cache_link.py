@@ -74,20 +74,36 @@ def _remove_link(link: Path) -> None:
         os.unlink(link)
 
 
+def _move_file(src: Path, dest: Path) -> None:
+    """Move one file safely: across drives copy to a temporary name first, then rename,
+    so an interrupted move never leaves a partial file under the final name."""
+    try:
+        os.replace(src, dest)  # same drive: atomic
+        return
+    except OSError:
+        pass
+    tmp = dest.with_name(dest.name + ".simready-part")
+    shutil.copy2(src, tmp)
+    os.replace(tmp, dest)
+    src.unlink()
+
+
 def _move_children(src: Path, dst: Path) -> list[str]:
-    """Move everything from src into dst (existing entries in dst win). Returns failures."""
+    """Move everything from src into dst. The source (the old cache) wins over what is
+    already in dst. Returns the failures (left in src for the next attempt)."""
     failed = []
     for child in list(src.iterdir()):
         dest = dst / child.name
         try:
-            if dest.exists():
-                if child.is_dir() and not is_link(child):
-                    failed += _move_children(child, dest)
+            if child.is_dir() and not is_link(child):
+                dest.mkdir(exist_ok=True)
+                failed += _move_children(child, dest)
+                if not any(child.iterdir()):
                     child.rmdir()
-                else:
-                    child.unlink()  # keep the copy already in the data folder
+            elif child.name.endswith(".simready-part"):
+                child.unlink()
             else:
-                shutil.move(str(child), str(dest))
+                _move_file(child, dest)
         except OSError as e:
             failed.append(f"{child}: {e}")
     return failed
@@ -117,11 +133,17 @@ def ensure(link: Path, target: Path) -> tuple[str, str]:
         elif link.exists():
             # A real folder (cache made before the add-on): rename it first, which fails while
             # Blender keeps files open in it (Windows), so nothing is half moved.
+            if pending.exists():
+                return "error", f"{pending} exists: move its content into {target} by hand"
             try:
                 link.rename(pending)
             except OSError as e:
                 return "busy", f"Blender is using {link}: restart Blender to move it ({e})"
-            _make_link(link, target)
+            try:
+                _make_link(link, target)
+            except OSError as e:
+                pending.rename(link)  # put the cache back as it was
+                return "error", f"cannot link {link} to {target}: {e}"
             state, msg = "moved", ""
         else:
             _make_link(link, target)

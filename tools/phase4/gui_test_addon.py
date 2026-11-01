@@ -100,14 +100,15 @@ def scenario():
     lib = libs[0]
     p = Path(lib.path)
     check("cache folder is a link into the data folder",
-          p.is_symlink() and Path(os.readlink(p)) == Path(bpy.path.abspath(prefs().data_dir)) / "blender-cache",
+          p.is_symlink() and Path(os.readlink(p)) == Path(bpy.path.abspath(prefs().data_dir)) / "blender-cache" / p.name,
           f"{p} -> {os.readlink(p) if p.is_symlink() else '-'}")
 
     # 2. listing downloaded by Blender
     win, area = browser_override()
-    space = area.spaces.active
-    for _ in wait(lambda: Path(lib.path, "_v1", "asset-index.json").exists(), 60):
+    for _ in wait(lambda: Path(lib.path, "_v1", "asset-index.json").exists()
+                  and area.spaces.active.params is not None, 60):
         yield _
+    space = area.spaces.active
     with bpy.context.temp_override(window=win, area=area):
         space.params.asset_library_reference = lib.name
     yield 3.0
@@ -150,11 +151,25 @@ def scenario():
     check("collection asset downloaded", ctarget.exists())
     area.type = 'VIEW_3D'
     yield 1.0
+    # a foreign linked library already in the file must stay linked
+    other = Path(bpy.app.tempdir) / "other.blend"
+    tmpcoll = bpy.data.collections.new("NotSimReady")
+    tmpcoll.objects.link(bpy.data.objects.new("plain", bpy.data.meshes.new("plain_mesh")))
+    bpy.data.libraries.write(str(other), {tmpcoll})
+    bpy.data.objects.remove(bpy.data.objects["plain"])
+    bpy.data.meshes.remove(bpy.data.meshes["plain_mesh"])
+    bpy.data.collections.remove(tmpcoll)
+    prefs().import_mode = 'PACK'
+    with bpy.context.temp_override(window=win, area=area, region=[r for r in area.regions if r.type == 'WINDOW'][0]):
+        bpy.ops.wm.link(directory=str(other) + "/Collection/", filename="NotSimReady", instance_collections=True)
+    prefs().import_mode = 'APPEND_EDITABLE'
+    yield 1.0
     n_before = len(bpy.data.objects)
     with bpy.context.temp_override(window=win, area=area, region=[r for r in area.regions if r.type == 'WINDOW'][0]):
         bpy.ops.wm.link(directory=str(ctarget) + "/Collection/", filename=COLL_ASSET, instance_collections=True)
     yield 2.0
-    empties = [o for o in bpy.context.view_layer.objects if o.instance_type == 'COLLECTION']
+    empties = [o for o in bpy.context.view_layer.objects if o.instance_type == 'COLLECTION'
+               and o.instance_collection and o.instance_collection.name != "NotSimReady"]
     meshes = [o for o in bpy.context.view_layer.objects if o.type == 'MESH']
     check("instances made real", not empties and meshes, f"empties={[o.name for o in empties]} meshes={len(meshes)}")
     check("data made local", meshes and all(o.library is None and (o.data is None or o.data.library is None) for o in meshes),
@@ -165,20 +180,17 @@ def scenario():
     with bpy.context.temp_override(window=win, area=area, region=[r for r in area.regions if r.type == 'WINDOW'][0]):
         bpy.ops.wm.append(directory=str(ctarget) + "/Collection/", filename=COLL_ASSET, instance_collections=True)
     yield 2.0
-    empties = [o for o in bpy.context.view_layer.objects if o.instance_type == 'COLLECTION']
+    empties = [o for o in bpy.context.view_layer.objects if o.instance_type == 'COLLECTION'
+               and o.instance_collection and o.instance_collection.name != "NotSimReady"]
     check("append: instances made real", not empties, f"empties={[o.name for o in empties]}")
 
-    # 6. a non-SimReady import must be left alone
-    other = Path(bpy.app.tempdir) / "other.blend"
-    tmpcoll = bpy.data.collections.new("NotSimReady")
-    tmpcoll.objects.link(bpy.data.objects.new("plain", None))
-    bpy.data.libraries.write(str(other), {tmpcoll})
-    with bpy.context.temp_override(window=win, area=area, region=[r for r in area.regions if r.type == 'WINDOW'][0]):
-        bpy.ops.wm.link(directory=str(other) + "/Collection/", filename="NotSimReady", instance_collections=True)
-    yield 2.0
+    # 6. the foreign library linked before is untouched
     foreign = [o for o in bpy.context.view_layer.objects if o.instance_type == 'COLLECTION'
                and o.instance_collection and o.instance_collection.name == "NotSimReady"]
-    check("other files untouched", len(foreign) == 1, str([o.name for o in foreign]))
+    plain = next((o for o in bpy.data.objects if o.name == "plain"), None)
+    check("foreign instance untouched", len(foreign) == 1, str([o.name for o in foreign]))
+    check("foreign data still linked", plain is not None and plain.library is not None
+          and plain.data.library is not None, str(plain and (plain.library, plain.data.library)))
 
     say("RESULTS", json.dumps(results))
     say("DONE", "ALL PASS" if all(results.values()) else "SOME FAILED")

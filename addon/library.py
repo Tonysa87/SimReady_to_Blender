@@ -57,11 +57,38 @@ def ensure(url: str) -> tuple[object | None, str]:
 # "Append, editable" works on top of whatever method Blender uses (see importer.py).
 
 
-def reload_listing(lib) -> None:
-    """Download the listing again (same as Shift+Refresh), without needing an Asset Browser."""
+def _syncing(path: Path) -> bool:
+    """True while Blender (this instance) is already downloading this library's listing."""
+    from _bpy_internal.assets.remote_library import sync_mutex
     import bl_pkg
-    bl_pkg.remote_asset_library_sync(lib.remote_url, Path(lib.path))
+    key = Path(path).resolve()
+    locked = any(Path(p).resolve() == key for p in list(sync_mutex._mutex_locks))
+    busy = any(Path(getattr(d, "local_path", "")).resolve() == key for d in list(getattr(bl_pkg, "_downloaders", [])))
+    return locked or busy
+
+
+def reload_listing(lib) -> bool:
+    """Download the listing again (same as Shift+Refresh), without needing an Asset Browser.
+
+    Returns False when it could not start now (a sync is already running here or in another
+    Blender): the caller retries a moment later, otherwise the asset keeps its placeholder hash."""
+    import bl_pkg
+    path = Path(lib.path)
+    try:
+        if _syncing(path):
+            return False
+    except Exception:  # private Blender internals changed: just try
+        pass
+    try:
+        bl_pkg.remote_asset_library_sync(lib.remote_url, path)
+    except AssertionError:  # "Locks are not reentrant": a sync started meanwhile
+        return False
+    try:
+        started = _syncing(path)
+    except Exception:
+        started = True
     for win in bpy.context.window_manager.windows:
         for area in win.screen.areas:
             if area.type == 'FILE_BROWSER':
                 area.tag_redraw()
+    return started

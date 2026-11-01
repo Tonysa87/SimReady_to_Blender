@@ -252,22 +252,36 @@ def _tick():
 
 
 def _tick_inner(p) -> None:
-    url = library.url_for(p.port)
     if not _state["registered_url"]:
-        # Port changes apply at the next start: the URL must not change in a session.
-        _state["registered_url"] = url
+        # The port is read once per session: Blender keeps a remote library per URL until
+        # restart, so a new port only applies at the next start (and so does the server).
+        _state["registered_url"] = library.url_for(p.port)
         RUNTIME.start_polling(p.port)
-    if url != _state["registered_url"]:
-        url = _state["registered_url"]
+    url = _state["registered_url"]
 
     lib, problem = our_library_by(url), ""
     if lib is None:
-        lib, problem = library.ensure(url)  # creates it if missing, reports duplicates
+        if not _state.get("library_checked"):
+            lib, problem = library.ensure(url)  # creates it if missing, reports duplicates
+        else:
+            # Removed (or edited) during the session: adding it again now breaks Blender's
+            # asset lookup until restart (phase-1 report), so only tell the user.
+            problem = "The SimReady asset library was removed or changed: restart Blender to add it again"
+    _state["library_checked"] = True
     _state["library_problem"] = problem
 
     st = RUNTIME.snapshot()
-    if (st is None and p.autostart and bpy.app.online_access and not RUNTIME.owns_server()
-            and time.time() - RUNTIME.last_start > 15.0):
+    if st is not None and not _state.get("server_seen"):
+        _state["server_seen"] = True
+        RUNTIME.reload_at = time.time() + 1.0  # Blender may have tried the listing before the server was up
+    elif st is None:
+        _state["server_seen"] = False
+    code = RUNTIME.proc.poll() if RUNTIME.proc is not None else None
+    if code == 2:
+        RUNTIME.message = (f"Port {RUNTIME.port} is used by another program: choose another port "
+                           "and restart Blender")
+    elif (st is None and p.autostart and bpy.app.online_access and not RUNTIME.owns_server()
+          and time.time() - RUNTIME.last_start > 15.0):
         RUNTIME.start_server(p, server_dir(p))
 
     for ev in RUNTIME.take_events():
@@ -276,11 +290,16 @@ def _tick_inner(p) -> None:
         elif ev.get("type") == "error":
             RUNTIME.recent_error = (f"{ev.get('asset')}: conversion failed (see the server log)", time.time())
     if RUNTIME.reload_at and time.time() >= RUNTIME.reload_at and lib is not None:
-        RUNTIME.reload_at = 0.0
         try:
-            library.reload_listing(lib)
+            started = library.reload_listing(lib)
         except Exception as e:
             print(f"SimReady: listing reload failed: {e}")
+            started = True  # do not retry forever on a real error
+        if started or _state.get("reload_tries", 0) >= 60:
+            RUNTIME.reload_at, _state["reload_tries"] = 0.0, 0
+        else:  # a sync is already running: try again shortly
+            RUNTIME.reload_at = time.time() + 2.0
+            _state["reload_tries"] = _state.get("reload_tries", 0) + 1
 
     for win in bpy.context.window_manager.windows:  # status bar text
         for area in win.screen.areas:
@@ -308,8 +327,10 @@ def _link_blender_cache() -> None:
             _state["cache"] = ("", "Choose a Data Folder to keep Blender's downloads there too")
             return
         url = library.url_for(p.port)
-        link = cache_link.library_cache_dir(url)
-        _state["cache"] = cache_link.ensure(link, data_dir(p) / cache_link.LINK_DIRNAME)
+        lib = our_library_by(url)
+        link = Path(lib.path) if lib is not None and lib.path else cache_link.library_cache_dir(url)
+        # One sub-folder per library URL: two URLs (e.g. after a port change) never share a listing.
+        _state["cache"] = cache_link.ensure(link, data_dir(p) / cache_link.LINK_DIRNAME / link.name)
     except Exception as e:
         _state["cache"] = ("error", f"Blender cache not moved: {e}")
 

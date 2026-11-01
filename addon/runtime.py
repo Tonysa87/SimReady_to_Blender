@@ -90,10 +90,12 @@ class Runtime:
     def start_server(self, prefs, state_dir: Path) -> bool:
         if self.owns_server():
             return True
+        if not self.port:
+            self.port = prefs.port
         self.last_start = time.time()
         state_dir.mkdir(parents=True, exist_ok=True)
         args = [sys.executable, "-s", "-E", "-m", "simready.server",
-                "--state-dir", str(state_dir), "--port", str(prefs.port),
+                "--state-dir", str(state_dir), "--port", str(self.port), "--quiet",
                 "--max-res", prefs.max_res, "--blender", bpy.app.binary_path,
                 "--parent-pid", str(os.getpid())]
         if prefs.prefetch_thumbs:
@@ -109,7 +111,7 @@ class Runtime:
         log = state_dir / "logs"
         log.mkdir(exist_ok=True)
         try:
-            with (log / "stdout.log").open("ab") as out:
+            with (log / "stdout.log").open("wb") as out:  # only crashes end up here (--quiet)
                 self.proc = subprocess.Popen(args, cwd=str(ADDON_DIR), env=env, stdin=subprocess.DEVNULL,
                                              stdout=out, stderr=subprocess.STDOUT, **kwargs)
         except OSError as e:

@@ -417,10 +417,14 @@ class Server(ThreadingHTTPServer):
     allow_reuse_address = os.name != "nt"
 
 
-def serve(lib: Library, port: int, require_x_blender: bool = True) -> None:
+def bind(port: int) -> Server:
+    """Take the port first: a second server must fail before touching the state folder."""
+    return Server(("127.0.0.1", port), Handler)
+
+
+def serve(lib: Library, httpd: Server, require_x_blender: bool = True) -> None:
     Handler.lib = lib
-    Handler.port = port
+    Handler.port = httpd.server_address[1]
     Handler.require_x_blender = require_x_blender
-    httpd = Server(("127.0.0.1", port), Handler)
-    log.info("serving on http://127.0.0.1:%d/ (state %s, max_res %d)", port, lib.s.state_dir, lib.s.max_res)
+    log.info("serving on http://127.0.0.1:%d/ (state %s, max_res %d)", Handler.port, lib.s.state_dir, lib.s.max_res)
     httpd.serve_forever()
