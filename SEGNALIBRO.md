@@ -38,7 +38,8 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 4. **Progetto compatibile con OpenPBR**: descrizione intermedia con nomi OpenPBR → Principled BSDF.
 5. **Modalità di import nell'add-on**: "Pack" oppure "Append, modificabile" (Make Instances Real +
    Make Local All, solo sui dati della cache SimReady).
-6. Cache del server di test in `<cartella dati>\simready_test` (in WSL `/mnt/e/...`).
+6. Cartella di prova (rinominata da Tonysa87 la sera dell'1/11): `<cartella dati>\simready_dev\` =
+   Data Folder dell'add-on (`server\`, `blender-cache\`); le cose di sviluppo stanno in `dev_files\`.
 7. Sessione serale: mandato a Claude di proseguire in autonomia (ricerche, fino a 3 agenti Opus).
 8. Idee di Tonysa87: **indice di partenza** già pronto + controllo periodico delle novità (fatto:
    `--seed-index`, `--check-hours 24`); **cartella dati scelta nell'add-on** (il server ha già
@@ -84,7 +85,8 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
   Commit `f7018f2`, `7b2def0`.
 - Test GUI Linux 15/15; junction e server provati col Python del Blender Windows di Tonysa87.
 - README: crediti NVIDIA / dataset Hugging Face / CC-BY-4.0 e istruzioni d'installazione.
-- Acceso: server WSL sulla 8765 per Tonysa87 (da spegnere quando prova l'add-on, che avvia il suo).
+- Server WSL spento; cartella di prova ripulita (sviluppo in `simready_dev\dev_files\`, download vecchi e
+  cache di Blender `ef7615a0e6baf832` cancellati con l'ok di Tonysa87). Zip per Tonysa87: `<cartella dati>\simready_library-0.4.1.zip`.
 
 ## Domande aperte per Tonysa87
 
@@ -109,6 +111,6 @@ PY=~/blender/blender-5.2.2-linux-x64/5.2/python/bin/python3.13
 python3 -m unittest discover -s tests && $PY -s -E -m unittest discover -s tests
 # server per il Blender Windows (URL http://127.0.0.1:8765/); controllare se è già acceso:
 pgrep -af "simready.server --state-dir"
-nohup $PY -s -E -m simready.server --state-dir <cartella dati>/simready_test/phase3 \
-  --port 8765 --max-res 2048 --blender $B > <cartella dati>/simready_test/phase3/stdout.log 2>&1 &
+nohup $PY -s -E -m simready.server --state-dir /tmp/claude-1000/devserver \
+  --port 8790 --max-res 2048 --blender $B > /tmp/claude-1000/devserver.log 2>&1 &   # la 8765 ora è dell'add-on su Windows
 ```
