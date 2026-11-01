@@ -39,9 +39,12 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (manca la 
    Make Local All, solo sui dati della cache SimReady).
 6. Cache del server di test in `<cartella dati>\simready_test` (in WSL `/mnt/e/...`).
 7. Sessione serale: mandato a Claude di proseguire in autonomia (ricerche, fino a 3 agenti Opus).
-8. Idee di Tonysa87 da realizzare: **indice di partenza** già pronto + controllo periodico delle novità
-   (fatto lato server: `--seed-index`, `--check-hours 24`); **cartella dati scelta nell'add-on**
-   (il server ha già un'unica `--state-dir`).
+8. Idee di Tonysa87: **indice di partenza** già pronto + controllo periodico delle novità (fatto:
+   `--seed-index`, `--check-hours 24`); **cartella dati scelta nell'add-on** (il server ha già
+   un'unica `--state-dir`).
+9. **L'indice di partenza sta nel repo** (`simready/server/data/seed_index.json.gz`, 2,6 MB), usato
+   di default dal server. Aggiornarlo quando cambia la revisione HF (`tools/phase3/make_seed_index.py`).
+10. Pulizia della vecchia cache `6f0c46218f1e3d46`: autorizzata e fatta (era solo il prototipo di fase 1).
 
 ## Fatti tecnici da non dimenticare
 
@@ -81,11 +84,10 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (manca la 
 
 ## Domande aperte per Tonysa87
 
-1. **Indice di partenza**: nel pacchetto dell'add-on (non in git, dati NVIDIA con attribuzione)?
-2. **Copia dei .blend nel server** (spazio doppio con la cache di Blender): opzione accesa o spenta di default?
-3. Porta 8765 fissa: va bene?
-4. Pulizia della vecchia cartella di cache di Blender `6f0c46218f1e3d46` su Windows?
-5. Albedo in JPEG per ridurre il peso? Gruppi dei cataloghi da rivedere a occhio.
+1. **Copia dei .blend nel server** (spazio doppio con la cache di Blender): Tonysa87 ha risposto "se
+   GitHub lo permette caricali", probabile equivoco; chiarito in chat, in attesa di risposta.
+2. Porta 8765 fissa (Claude propone di tenerla); albedo in JPEG (rimandato alla fase 5, da misurare).
+3. Gruppi dei cataloghi da rivedere a occhio nell'Asset Browser.
 
 ## Prossimi passi
 

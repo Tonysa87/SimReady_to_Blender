@@ -23,6 +23,8 @@ from .app import Library, serve
 from .hf import HFClient
 from .jobs import Settings
 
+SEED_INDEX = Path(__file__).with_name("data") / "seed_index.json.gz"
+
 
 def default_blender() -> Path | None:
     """Blender's own executable when running on its bundled Python."""
@@ -84,7 +86,8 @@ def main(argv=None) -> None:
     ap.add_argument("--mirror", type=Path, help="local copy of the dataset metadata at the same revision (dev)")
     ap.add_argument("--revision", help="pin a dataset commit instead of following main")
     ap.add_argument("--no-refresh", action="store_true", help="do not check Hugging Face for a new revision at start")
-    ap.add_argument("--seed-index", type=Path, help="ready index (.json/.json.gz) used when the state dir has none")
+    ap.add_argument("--seed-index", type=Path, default=SEED_INDEX,
+                    help="ready index (.json/.json.gz) used when the state dir has none (default: the one in the repo)")
     ap.add_argument("--check-hours", type=float, default=24, help="look for a new dataset revision every N hours (0 = never)")
     ap.add_argument("--prefetch-thumbs", action="store_true",
                     help="make all thumbnails in the background (~1.3 GB from HF, ~25 MB on disk)")

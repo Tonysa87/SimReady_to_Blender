@@ -37,6 +37,7 @@ La conversione (`simready/convert/convert_asset.py`, eseguita da `blender -b`):
 |---|---|
 | `simready/convert/` | convertitore USD → .blend (futuro cuore dell'add-on) |
 | `simready/server/` | server della libreria remota: indice HF, cataloghi, anteprime, conversioni, listing |
+| `simready/server/data/seed_index.json.gz` | indice di partenza dei 2.677 asset (nomi, dimensioni e sha256 dei file NVIDIA, CC-BY-4.0); si rigenera con `tools/phase3/make_seed_index.py` |
 | `tests/` | test di materiali, server e previsione della struttura |
 | `tools/phase1/` | prototipo del meccanismo di libreria remota e test GUI |
 | `tools/phase2/` | conversione batch, render di confronto, test normal map, server di test con asset reali |
@@ -78,5 +79,7 @@ la sessione (vedi i bug documentati in `docs/fase1-report.md`).
 
 - Codice: GPL-3.0-or-later (file `LICENSE` da aggiungere).
 - Asset: © NVIDIA Corporation, [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/).
+  L'indice di partenza (`simready/server/data/`) contiene solo metadati derivati dal dataset
+  NVIDIA (nomi, dimensioni, impronte dei file), stessa licenza e attribuzione.
   I marchi e i loghi presenti sugli asset non sono coperti dalla licenza. Gli asset non sono
   inclusi in questo repository: vengono scaricati da Hugging Face sul computer dell'utente.
