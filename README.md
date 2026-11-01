@@ -1,138 +1,137 @@
 # SimReady to Blender
 
-> **English summary.** A Blender 5.2 add-on that puts the ~2,700 **NVIDIA SimReady** assets
-> ([`nvidia/simready-assets`](https://huggingface.co/datasets/nvidia/simready-assets), CC-BY-4.0)
-> in Blender's **Asset Browser** as a remote asset library, with catalogs and thumbnails. When you
-> download an asset, a small local server (127.0.0.1) fetches it from Hugging Face and converts it
-> on the spot: USD → .blend, OmniPBR/MDL materials → Principled BSDF, real-world scale.
->
-> **Install**: Blender 5.2 → *Preferences → Get Extensions → ⌄ → Install from Disk…* →
-> `simready_library-<version>.zip` from the [Releases](https://github.com/Tonysa87/SimReady_to_Blender/releases);
-> enable *Preferences → System → Allow Online Access*; in the add-on preferences pick a **Data Folder**
-> and restart Blender once. Then: Asset Browser → *NVIDIA SimReady* → download an asset with the
-> button on its tile → drag it into the scene. First download of an asset takes from a few seconds
-> to a few minutes (conversion). Tested on Windows 11; experimental, made with Claude.
->
-> **Credits**: all 3D assets © **NVIDIA Corporation**, [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets),
-> licensed [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/). Assets are not included here:
-> they are downloaded from Hugging Face on your computer. Changes made: USD converted to .blend,
-> materials translated to Principled BSDF, textures optionally downscaled, physics variants and USD
-> instancing removed, thumbnails resized. Not affiliated with or endorsed by NVIDIA.
-> Code: GPL-3.0-or-later (see `LICENSE`).
+The ~2,700 **NVIDIA SimReady** assets ([`nvidia/simready-assets`](https://huggingface.co/datasets/nvidia/simready-assets),
+CC-BY-4.0) directly in **Blender 5.2's Asset Browser**, as a remote asset library like any other.
+All assets show up right away, with thumbnails and catalogs; when you download one, it is fetched
+from Hugging Face and **converted to .blend on the spot**.
 
-Gli asset NVIDIA **SimReady** ([`nvidia/simready-assets`](https://huggingface.co/datasets/nvidia/simready-assets),
-~2.677 asset, CC-BY-4.0) direttamente nell'**Asset Browser di Blender 5.2 LTS**, come una
-libreria remota qualsiasi. Si vedono tutti subito, con anteprime e cataloghi; un asset viene
-scaricato da Hugging Face e **convertito in .blend al momento del download**.
+> Status: **0.4.1, tested on Blender 5.2 (Windows 11)**. Experimental. Made with Claude.
+> Download the add-on from the [Releases](https://github.com/Tonysa87/SimReady_to_Blender/releases).
 
-> Stato: **0.4.1, verificata su Blender 5.2 Windows** (fasi 1–4 completate). Lo .zip si scarica
-> dalle Releases o si genera con `tools/build_extension.py`. Dettagli in `SEGNALIBRO.md` e `docs/`.
+## Credits
 
-## Crediti
+All 3D assets are by **NVIDIA Corporation**: the
+[**NVIDIA SimReady Assets**](https://huggingface.co/datasets/nvidia/simready-assets) dataset
+(`nvidia/simready-assets` on Hugging Face), released under the
+[**Creative Commons Attribution 4.0 International (CC-BY-4.0)**](https://creativecommons.org/licenses/by/4.0/) license.
 
-Tutti gli asset 3D sono di **NVIDIA Corporation**: dataset
-[**NVIDIA SimReady Assets**](https://huggingface.co/datasets/nvidia/simready-assets)
-(`nvidia/simready-assets` su Hugging Face), distribuito con licenza
-[**Creative Commons Attribution 4.0 International (CC-BY-4.0)**](https://creativecommons.org/licenses/by/4.0/).
+- The assets are **not included** in this repository or in the add-on: they are downloaded from
+  Hugging Face to the user's computer when needed.
+- **Changes made** (as required by CC-BY-4.0): USD files are converted to `.blend`;
+  OmniPBR/OmniGlass/UsdPreviewSurface materials are translated to Principled BSDF; textures can be
+  downscaled (2K/1K); physics variants and USD instancing are removed; thumbnails are resized to
+  256 px; single-mesh assets take the asset's name.
+- This project is not affiliated with or endorsed by NVIDIA.
+- Every converted asset carries author (NVIDIA), license (CC-BY-4.0), copyright and a link to its
+  Hugging Face folder in its Blender asset metadata.
+- Trademarks and logos visible on the assets are not covered by the license.
+- `simready/server/data/seed_index.json.gz` contains only metadata derived from the dataset
+  (folder names, file sizes and SHA-256 digests), under the same license and attribution.
 
-- Gli asset **non sono inclusi** in questo repository né nell'add-on: vengono scaricati da
-  Hugging Face sul computer dell'utente, al momento dell'uso.
-- **Modifiche apportate** (come richiesto dalla CC-BY-4.0): i file USD vengono convertiti in
-  `.blend`; i materiali OmniPBR/OmniGlass/UsdPreviewSurface vengono tradotti in Principled BSDF;
-  le texture possono essere ridotte (2K/1K); varianti di fisica e istanze USD vengono rimosse;
-  le anteprime vengono ridotte a 256 px; gli asset di un solo pezzo prendono il nome dell'asset.
-  NVIDIA non è coinvolta in questo progetto e non lo approva.
-- Ogni asset convertito porta nei metadati di Blender autore (NVIDIA), licenza (CC-BY-4.0),
-  copyright e il link alla sua cartella su Hugging Face.
-- Marchi e loghi visibili sugli asset non sono coperti dalla licenza.
-- `simready/server/data/seed_index.json.gz` contiene solo metadati derivati dal dataset
-  (nomi delle cartelle, dimensioni e impronte SHA-256 dei file), stessa licenza e attribuzione.
+## Installation
 
-## Installazione (add-on)
+1. Blender 5.2 → *Edit → Preferences → Get Extensions → ⌄ (top right) → Install from Disk…* →
+   `simready_library-<version>.zip`.
+2. *Preferences → System*: enable **Allow Online Access**.
+3. In the add-on preferences choose a **Data Folder** (index, thumbnails and downloaded assets),
+   then restart Blender once (this also moves Blender's own download cache there).
+4. Asset Browser → **NVIDIA SimReady** library: download an asset with the button on its tile,
+   then drag it into the scene.
 
-1. Blender 5.2 → *Edit → Preferences → Get Extensions → ⌄ → Install from Disk…* →
-   `simready_library-<versione>.zip`.
-2. *Preferences → System*: **Allow Online Access** attivo.
-3. Nelle preferenze dell'add-on scegliere la **Data Folder** (indice, anteprime e cache dei
-   download), poi riavviare Blender una volta (sposta lì anche la cache di Blender).
-4. Asset Browser → libreria **NVIDIA SimReady**: si scarica un asset con il pulsante sulla tile,
-   poi lo si trascina nella scena.
+### Preferences
 
-## Come funziona
+| Option | What it does |
+|---|---|
+| Data Folder | Where everything is stored: server index, thumbnails, Blender's cache of downloaded assets |
+| Texture Size | Max (original, up to 4K) / 2K / 1K, applied when an asset is converted |
+| Import | *Pack* (Blender's default) or *Append, editable* (instances made real, SimReady data made local) |
+| Prepare all thumbnails | Builds every thumbnail in the background (~1.3 GB from Hugging Face once, ~25 MB on disk) |
+| Start automatically / Port | The local server starts with Blender on `127.0.0.1:8765` |
+| Hugging Face Token | Optional, only for higher download rate limits; not needed |
+
+### Good to know
+
+- The first download of an asset takes from a few seconds to a few minutes (download +
+  conversion). Big assets can be hundreds of MB, mostly because of 4K textures: use 2K or 1K if
+  you don't need them.
+- The conversion progress is shown in Blender's status bar; the listing refreshes by itself
+  afterwards (no Shift+Refresh needed).
+- Drag & drop of an asset that is not downloaded yet is blocked by Blender itself: download it
+  first with the button on its tile.
+
+## How it works
 
 ```
-Blender (Asset Browser, libreria remota)
+Blender (Asset Browser, remote library)
    │  GET _asset-library-meta.json, _v1/*.json, thumbs/*, blend/*.blend?hash=...
    ▼
-Server locale 127.0.0.1:8765 (Python di Blender: stdlib + pxr + OpenImageIO)
-   ├── listing generato dall'indice NVIDIA (hash "segnaposto" per i .blend non ancora convertiti)
-   ├── alla prima richiesta di un .blend: download da Hugging Face → conversione headless → risposta
-   └── /_status: l'add-on ricarica il listing con l'hash reale → asset "verificato" in Blender
+Local server 127.0.0.1:8765 (Blender's own Python: stdlib + pxr + OpenImageIO)
+   ├── listing built from the NVIDIA index ("placeholder" hashes for .blend files not converted yet)
+   ├── first request of a .blend: download from Hugging Face → headless conversion → response
+   └── /_status: the add-on reloads the listing with the real hash → asset "verified" in Blender
 ```
 
-La conversione (`simready/convert/convert_asset.py`, eseguita da `blender -b`):
+Conversions longer than Blender's 300 s download timeout are streamed as gzip with empty deflate
+blocks as keep-alive, so even the biggest assets arrive in a single request.
 
-1. livello USD "wrapper": varianti di fisica disattivate, istanze USD rese normali prim;
-2. import USD nativo di Blender per geometria, UV e scala (metri);
-3. **materiali convertiti da noi** tramite `bpy.types.USDHook`: OmniPBR, OmniGlass e
-   UsdPreviewSurface → descrizione intermedia con nomi **OpenPBR** → Principled BSDF.
-   La semantica segue il codice MDL di NVIDIA (tinta, influenze, ORM, opacità); le normal map
-   SimReady sono **DirectX** (verificato) e usano il nodo Normal Map in modalità DirectX;
-4. asset di un solo pezzo → **Object**, asset composti → **Collection**; nomi sempre quelli NVIDIA;
-5. texture ridotte a Max/2K/1K e impacchettate; metadati e anteprima NVIDIA incorporati.
+The conversion (`simready/convert/convert_asset.py`, run by `blender -b`):
 
-## Struttura
+1. a USD "wrapper" layer: physics variants disabled, USD instances turned into regular prims;
+2. Blender's native USD import for geometry, UVs and scale (meters);
+3. **materials converted by this project** through `bpy.types.USDHook`: OmniPBR, OmniGlass and
+   UsdPreviewSurface → an intermediate description with **OpenPBR** names → Principled BSDF.
+   The semantics follow NVIDIA's MDL code (tint, influences, ORM, opacity); SimReady normal maps
+   are **DirectX** (verified) and use the Normal Map node in DirectX mode;
+4. single-mesh assets → **Object** (named as the asset), multi-part assets → **Collection**
+   (parts keep their NVIDIA names);
+5. textures resized to Max/2K/1K and packed; NVIDIA metadata and thumbnail embedded.
 
-| Percorso | Contenuto |
+## Repository layout
+
+| Path | Content |
 |---|---|
-| `addon/` | add-on Blender (preferenze, avvio del server, libreria, cache, import modificabile) |
-| `simready/convert/` | convertitore USD → .blend (futuro cuore dell'add-on) |
-| `simready/server/` | server della libreria remota: indice HF, cataloghi, anteprime, conversioni, listing |
-| `simready/server/data/seed_index.json.gz` | indice di partenza dei 2.677 asset (nomi, dimensioni e sha256 dei file NVIDIA, CC-BY-4.0); si rigenera con `tools/phase3/make_seed_index.py` |
-| `tests/` | test di materiali, server e previsione della struttura |
-| `tools/phase1/` | prototipo del meccanismo di libreria remota e test GUI |
-| `tools/phase2/` | conversione batch, render di confronto, test normal map, server di test con asset reali |
-| `tools/build_extension.py` | costruisce lo .zip dell'estensione in `dist/` |
-| `tools/phase4/` | test GUI dell'add-on installato |
-| `tools/phase3/` | esperimenti keep-alive/mismatch in Blender, validazione della previsione |
-| `tools/recon/` | script di ricognizione del dataset Hugging Face |
-| `docs/brief.md` | brief iniziale del progetto |
-| `docs/fase1-report.md` | esito delle fasi 1–2, comportamenti e bug di Blender 5.2, decisioni |
-| `docs/fase3-report.md` | esito della fase 3: server, indice, keep-alive, previsione |
-| `docs/ricerca-materiali.md` | ricerca MDL → Blender, mappatura OmniPBR, fonti |
-| `SEGNALIBRO.md` | stato attuale, ultime cose fatte, prossimi passi |
-| `cache/`, `out/` | dati NVIDIA scaricati e file generati — **non versionati** |
+| `addon/` | Blender add-on (preferences, server start, library, cache, editable import) |
+| `simready/convert/` | USD → .blend converter |
+| `simready/server/` | remote library server: HF index, catalogs, thumbnails, conversions, listing |
+| `simready/server/data/seed_index.json.gz` | ready index of the 2,677 assets (NVIDIA file names, sizes, SHA-256, CC-BY-4.0); rebuilt with `tools/phase3/make_seed_index.py` |
+| `tests/` | tests for materials, server, structure prediction and cache link |
+| `tools/build_extension.py` | builds the extension .zip in `dist/` |
+| `tools/phase1/` … `tools/phase4/` | development prototypes, experiments and GUI tests |
+| `tools/recon/` | Hugging Face dataset reconnaissance scripts |
+| `docs/` | development reports and research notes (in Italian) |
+| `SEGNALIBRO.md`, `CLAUDE.md` | development notes for the author and Claude Code (in Italian) |
 
-## Uso (sviluppo, Linux/WSL)
+## Development (Linux/WSL)
 
-Blender 5.2 Linux in `~/blender/blender-5.2.2-linux-x64/blender` (`$B` negli esempi).
+Blender 5.2 Linux in `~/blender/blender-5.2.2-linux-x64/blender` (`$B` below).
 
 ```bash
-# Test delle mappature
+# Tests (the pxr ones also run with Blender's Python)
 python3 -m unittest discover -s tests
+~/blender/blender-5.2.2-linux-x64/5.2/python/bin/python3.13 -s -E -m unittest discover -s tests
 
-# Convertire un asset già scaricato in cache/raw/<asset>
+# Convert an asset already downloaded in cache/raw/<asset>
 $B -b --factory-startup --python simready/convert/convert_asset.py -- \
    --asset-dir cache/raw/food_banana_a01 --out out/test/banana.blend \
    --max-res 2048 --report out/test/banana.json
 
-# Conversione dei 6 asset di prova a Max/2K/1K
-python3 tools/phase2/convert_batch.py
-
-# Server completo (Blender Windows → URL http://127.0.0.1:8765/), col Python di Blender
+# Run the server by hand with Blender's Python
 PY=~/blender/blender-5.2.2-linux-x64/5.2/python/bin/python3.13
-$PY -s -E -m simready.server --state-dir <cartella> --port 8765 --max-res 2048 --blender $B
+$PY -s -E -m simready.server --state-dir <folder> --port 8790 --max-res 2048 --blender $B
+
+# Build the add-on zip
+python3 tools/build_extension.py
 ```
 
-In Blender: *Preferences → File Paths → Asset Libraries → + → Add Remote Asset Library*,
-URL `http://127.0.0.1:8765/` (senza spazi). Una sola libreria per URL; non modificarla durante
-la sessione (vedi i bug documentati in `docs/fase1-report.md`).
+To use a hand-started server in Blender: *Preferences → File Paths → Asset Libraries → + →
+Add Remote Asset Library*, URL `http://127.0.0.1:<port>/` (exactly, no spaces). Only one library
+per URL, and don't edit it during a session (see the Blender 5.2 behaviours documented in
+`docs/fase1-report.md`).
 
-## Licenze
+## License
 
-- Codice: GPL-3.0-or-later (file `LICENSE`).
-- Asset: © NVIDIA Corporation, [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/).
-  L'indice di partenza (`simready/server/data/`) contiene solo metadati derivati dal dataset
-  NVIDIA (nomi, dimensioni, impronte dei file), stessa licenza e attribuzione.
-  I marchi e i loghi presenti sugli asset non sono coperti dalla licenza. Gli asset non sono
-  inclusi in questo repository: vengono scaricati da Hugging Face sul computer dell'utente.
+- Code: GPL-3.0-or-later (see `LICENSE`).
+- Assets: © NVIDIA Corporation, [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/), not
+  included in this repository (downloaded from Hugging Face on the user's computer). The seed
+  index in `simready/server/data/` contains only metadata derived from the NVIDIA dataset, under
+  the same license and attribution. Trademarks and logos on the assets are not covered by the license.
