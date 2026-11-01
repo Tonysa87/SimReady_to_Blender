@@ -264,6 +264,11 @@ class _Layers:
             spec = layer.GetPrimAtPath(path)
             if spec is None:
                 continue
+            # Value clips name other layers to open: never needed for the structure, and
+            # they would let a crafted file make pxr read arbitrary local files.
+            for key in list(spec.ListInfoKeys()):
+                if key.startswith("clip"):
+                    spec.ClearInfo(key)
             for key in ("references", "payload"):
                 if not spec.HasInfo(key):
                     continue

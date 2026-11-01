@@ -216,6 +216,30 @@ class PxrPredictTest(unittest.TestCase):
         r = self.predict(f)
         self.assertEqual((r["id_type"], r["mesh_count"]), ("OBJECT", 1), r)
 
+    def test_value_clips_never_open_other_files(self):
+        import tempfile
+        from pxr import Sdf
+        with tempfile.TemporaryDirectory() as d:
+            outside = Path(d) / "outside.usda"
+            outside.write_text('#usda 1.0\ndef Xform "Clip"\n{\n    token visibility.timeSamples = { 0: "invisible" }\n}\n')
+            extra = f"""
+        def Xform "clipped" (
+            clips = {{
+                dictionary default = {{
+                    asset[] assetPaths = [@{outside.as_posix()}@]
+                    string primPath = "/Clip"
+                    double2[] active = [(0, 0)]
+                }}
+            }}
+        )
+        {{
+        }}
+"""
+            f = files(base_usda([("a_obj", "a_mesh_00")], extra), instances_usda([("a_mesh_00", "a_mesh_00", ["a_mesh_00"])]))
+            r = self.predict(f)
+            self.assertEqual((r["id_type"], r["mesh_count"]), ("OBJECT", 1), r)
+            self.assertIsNone(Sdf.Layer.Find(str(outside)), "a value clip made pxr open a local file")
+
     def test_garbage_falls_back(self):
         r = self.predict({f"{P}/base.usda": b"#usda 1.0\n def Xform (((", ROOT: b"PXR-USDC garbage"})
         self.assertEqual((r["id_type"], r["name"], r["confidence"]), ("COLLECTION", "thing_a01", "low"))
