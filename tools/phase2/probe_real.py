@@ -14,7 +14,6 @@ import bpy
 argv = sys.argv[sys.argv.index("--") + 1:]
 URL, ASSETS = argv[0], argv[1:]
 LIB = "SimReady test"
-PREFIXES = ("food", "kitchenware", "ppe", "fixture", "rack", "warehouse")
 win = bpy.context.window_manager.windows[0]
 area = max(win.screen.areas, key=lambda a: a.width * a.height)
 
@@ -28,11 +27,19 @@ def ctx(**extra):
     return bpy.context.temp_override(window=win, area=area, region=region, space_data=area.spaces.active, **extra)
 
 
+def listing() -> dict:
+    """{asset name: file path} from the server listing (names may differ from folder ids)."""
+    with urllib.request.urlopen(URL + "_v1/assets-00000.json") as r:
+        page = json.load(r)
+    return {a["name"]: a["files"][0] for a in page["assets"]}
+
+
 def assets():
     area.tag_redraw()
     with ctx():
         bpy.ops.file.select_all(action='SELECT')
-        return {a.name: a for a in (bpy.context.selected_assets or []) if a.name.split("_")[0] in PREFIXES}
+        names = set(listing())
+        return {a.name: a for a in (bpy.context.selected_assets or []) if a.name in names}
 
 
 def status():
@@ -69,7 +76,7 @@ def steps():
     log("listed:", status())
     for name in ASSETS:
         a = assets()[name]
-        rel = f"blend/{name.split('_')[0]}/{name}.blend/{'Object' if a.id_type == 'OBJECT' else 'Collection'}/{name}"
+        rel = f"{listing()[name]}/{'Object' if a.id_type == 'OBJECT' else 'Collection'}/{name}"
         g0, t0 = generation(), time.time()
         log("download", name, bpy.ops.asset.asset_download(asset_library_type='CUSTOM', asset_library_identifier=LIB,
                                                             relative_asset_identifier=rel))

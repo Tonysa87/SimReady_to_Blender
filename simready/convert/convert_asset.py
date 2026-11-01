@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import tempfile
 import time
@@ -133,10 +134,7 @@ class ImageCache:
             img = bpy.data.images.load(path, check_existing=False)
         except RuntimeError:
             return None
-        img.colorspace_settings.name = colorspace
-        # Same file used with two colorspaces gets two images; keep names readable.
-        same_file = [k for k in self.images if k[0] == path]
-        img.name = Path(path).name + (f" ({colorspace})" if same_file else "")
+        img.colorspace_settings.name = colorspace  # name = NVIDIA file name (Blender adds .001 if loaded twice)
         self.images[key] = img
         return img
 
@@ -174,8 +172,28 @@ def process_images(max_res: int, asset_dir: Path, info: dict) -> None:
 # ---------------------------------------------------------------------- assets
 
 
+_BL_SUFFIX = re.compile(r"\.\d{3}$")
+
+
+def restore_nvidia_names(ids) -> None:
+    """Drop Blender's '.001' suffixes where the original NVIDIA name is free again
+    (e.g. after removing the Xform empty that shared the mesh prim's name)."""
+    for id_ in sorted(ids, key=lambda i: i.name):
+        base = _BL_SUFFIX.sub("", id_.name)
+        if base != id_.name and base not in _collection_of(id_):
+            id_.name = base
+
+
+def _collection_of(id_):
+    return bpy.data.objects if isinstance(id_, bpy.types.Object) else bpy.data.meshes
+
+
 def organize(asset_id: str, info: dict) -> bpy.types.ID:
-    """Keep only meshes (unparented, world transform preserved); Object or Collection asset."""
+    """Keep only meshes (unparented, world transform preserved), NVIDIA names untouched.
+
+    One mesh -> Object asset named as the NVIDIA mesh prim; several -> Collection
+    asset named as the NVIDIA asset folder.
+    """
     scene = bpy.context.scene
     meshes = [o for o in bpy.data.objects if o.type == 'MESH']
     for o in meshes:
@@ -187,17 +205,18 @@ def organize(asset_id: str, info: dict) -> bpy.types.ID:
         bpy.data.objects.remove(o)
     for c in list(bpy.data.collections):
         bpy.data.collections.remove(c)
+    restore_nvidia_names(meshes)
+    restore_nvidia_names({o.data for o in meshes})
     info["removed_objects"] = removed
     info["mesh_count"] = len(meshes)
 
     if len(meshes) == 1:
         ob = meshes[0]
-        ob.name = asset_id
-        ob.data.name = asset_id
         for c in list(ob.users_collection):
             c.objects.unlink(ob)
         scene.collection.objects.link(ob)
         info["asset_type"] = "OBJECT"
+        info["asset_name"] = ob.name
         return ob
 
     coll = bpy.data.collections.new(asset_id)
@@ -207,6 +226,7 @@ def organize(asset_id: str, info: dict) -> bpy.types.ID:
             c.objects.unlink(o)
         coll.objects.link(o)
     info["asset_type"] = "COLLECTION"
+    info["asset_name"] = coll.name
     return coll
 
 
@@ -313,7 +333,7 @@ def main() -> int:
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps(info, indent=1, default=str))
-    print("SIMREADY_CONVERT_OK", json.dumps({k: info[k] for k in ("asset", "asset_type", "mesh_count", "out_bytes", "timings")}))
+    print("SIMREADY_CONVERT_OK", json.dumps({k: info[k] for k in ("asset", "asset_type", "asset_name", "mesh_count", "out_bytes", "timings")}))
     return 0
 
 

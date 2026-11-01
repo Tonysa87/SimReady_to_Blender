@@ -31,7 +31,7 @@ RAW = ROOT / "cache/raw"
 BLENDER = Path.home() / "blender/blender-5.2.2-linux-x64/blender"
 CONVERTER = ROOT / "simready/convert/convert_asset.py"
 CATALOG_NS = uuid.UUID("2b9c1f3e-6a57-4f0e-9c1d-5e1d2e9a5172")  # same as convert_batch.py
-CONVERTER_VERSION = "phase2-1"
+CONVERTER_VERSION = "phase2-2"  # bump when converter output changes -> assets show "update"
 BLENDER_VERSION = "5.2"
 TEST_ASSETS = ["food_banana_a01", "kitchenware_bowl_b01", "ppe_eyeProtection_goggles_a01",
                "fixture_cabinet_a01", "rack_composition_a04", "warehouse_conveyorBelt_a01"]
@@ -76,8 +76,13 @@ class Asset:
         self.useful_bytes = sum(i["size"] for i in bom
                                 if i["relative_path"] == root or i["relative_path"].startswith(USEFUL_PREFIXES))
         self.bom_digest = sha256_bytes(json.dumps(sorted((i["relative_path"], i["hash"]["sha256"]) for i in bom)).encode())
-        rep = next((p for p in sorted((ROOT / "out/blend").glob(f"*/{aid}.json"))), None)
-        self.id_type = json.loads(rep.read_text())["asset_type"] if rep else "COLLECTION"
+        # Test shortcut: type and datablock name from an earlier conversion report.
+        # Object assets keep the NVIDIA mesh prim name; Collection assets use the folder name.
+        reps = list((ROOT / "out/blend").glob(f"*/{aid}.json"))
+        rep = max(reps, key=lambda p: p.stat().st_mtime) if reps else None
+        info = json.loads(rep.read_text()) if rep else {}
+        self.id_type = info.get("asset_type", "COLLECTION")
+        self.name = info.get("asset_name", aid)
 
     @property
     def relpath(self) -> str:
@@ -120,7 +125,7 @@ class Library:
             assets, files = [], []
             for a in self.assets.values():
                 assets.append({
-                    "name": a.id, "id_type": a.id_type, "files": [a.relpath],
+                    "name": a.name, "id_type": a.id_type, "files": [a.relpath],
                     "thumbnail": {"url": f"thumbs/{a.id}.png", "hash": "SHA256:" + sha256_file(a.thumb)},
                     "bl_versions": {"min": BLENDER_VERSION},
                     "meta": {"catalog_id": a.catalog_id, "tags": a.tags, "author": "NVIDIA",
