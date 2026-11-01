@@ -5,3 +5,6 @@ __pycache__/
 *.pyc
 *.blend1
 dist/
+
+# Personal, machine-specific notes for Claude Code
+CLAUDE.local.md
