@@ -2,7 +2,7 @@
 
 > Ponte tra sessioni di Claude Code: si aggiorna con `/segnalibro` prima di `/clear` o a fine
 > giornata. CLAUDE.md lo importa, quindi viene letto all'inizio di ogni sessione.
-> Ultimo aggiornamento: **1/11/2026, sera** (sessione in autonomia mentre Tonysa87 era fuori).
+> Ultimo aggiornamento: **1/11/2026, notte** (sessione in autonomia mentre Tonysa87 era fuori).
 
 ## Il progetto in breve
 
@@ -82,6 +82,9 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 - **Pubblicazione (1/11 notte)**: storia riscritta senza dati personali (autore `Tonysa87` noreply),
   dati locali in `CLAUDE.local.md` (non versionato), LICENSE GPL-3.0, README con riassunto inglese e crediti,
   repo pubblico nuovo + release v0.4.1. Tonysa87 posterà su Reddit.
+- README del repo tutto in inglese (`d753bb3`). Config git globale = Tonysa87 noreply.
+- Altri repo pubblici (FTC, lichtfeld-zup-view) analizzati: piano di anonimizzazione di FTC fuori dal
+  repo in `~/FTC-anonimizzazione.md` (da eseguire in una sessione aperta in `~/Projects/FTC`).
 
 - Fase 3 verificata da Tonysa87 su Windows (motore 829 MB → 334 MB, materiali e misure giusti).
 - **Add-on 0.4.1 verificato da Tonysa87 su Windows (1/11 sera)**: server avviato da Blender, anteprime in
