@@ -1,6 +1,6 @@
 # Fase 4 — Report: add-on
 
-Data: 1/11/2026 (sera) · sviluppato e revisionato in autonomia (decisione di Tonysa87), da provare su Windows.
+Data: 1/11/2026 (sera) · sviluppato e revisionato in autonomia (decisione di Tonysa87), **verificato da Tonysa87 su Windows**.
 
 ## Cosa fa
 
@@ -34,6 +34,18 @@ Estensione Blender 5.2 (`addon/` + pacchetto `simready/`, zip costruito da `tool
   `blender.exe` (4,5 s), consegna gzip, spegnimento con `/_control/shutdown`.
 - Revisione avversariale: 11 problemi, tutti corretti. Il più grave: `make_local(type='ALL')`
   avrebbe reso locali anche le librerie non SimReady dell'utente.
+
+## Prova su Windows (Tonysa87, 1/11 sera, versione 0.4.1)
+
+- Primo tentativo: la porta 8765 era ancora occupata dal server di sviluppo in WSL; il server di Windows
+  usciva con "porta occupata" e l'add-on non riprovava più → corretto in 0.4.1 (nuovo tentativo ogni 15 s).
+- Server avviato da Blender (cartella dati `<cartella dati>\simready_cache\`, texture Max),
+  anteprime generate in background, nessuna finestra di console.
+- `engineComponent_cylinder_piston_a01`: conversione in 7 s, copia del server cancellata, listing ricaricato
+  dall'add-on 3 s dopo (hash nel listing di Blender = file), nessun avviso.
+- "Append, editable": empty genitore con i due pezzi veri, locali, modificabili in Edit Mode. Tonysa87 tiene l'empty.
+- Riavvio: cache di Blender trasformata in junction verso `simready_cache\blender-cache\ef7615a0e6baf832`,
+  pistone spostato e ancora "scaricato", nessun avviso.
 
 ## Limiti noti
 

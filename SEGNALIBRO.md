@@ -13,7 +13,7 @@ un .blend, il server scarica l'asset da HF, lo converte (Blender headless) e lo 
 stessa risposta; poi il listing viene ricaricato con l'hash reale. Un add-on avvierà il server e
 gestirà la libreria. Brief completo: `docs/brief.md`.
 
-Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificato su Windows) · **4 add-on ⏳ (da provare su Windows)** · 5 robustezza · 6 packaging.
+Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificato su Windows) · 4 add-on ✅ (verificato su Windows) · **5 robustezza ⏳** · 5 robustezza · 6 packaging.
 
 ## Stato attuale
 
@@ -38,8 +38,8 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 4. **Progetto compatibile con OpenPBR**: descrizione intermedia con nomi OpenPBR → Principled BSDF.
 5. **Modalità di import nell'add-on**: "Pack" oppure "Append, modificabile" (Make Instances Real +
    Make Local All, solo sui dati della cache SimReady).
-6. Cartella di prova (rinominata da Tonysa87 la sera dell'1/11): `<cartella dati>\simready_dev\` =
-   Data Folder dell'add-on (`server\`, `blender-cache\`); le cose di sviluppo stanno in `dev_files\`.
+6. Data Folder dell'add-on scelta da Tonysa87: `<cartella dati>\simready_cache\` (texture Max);
+   le cose di sviluppo stanno in `<cartella dati>\simready_dev\dev_files\`.
 7. Sessione serale: mandato a Claude di proseguire in autonomia (ricerche, fino a 3 agenti Opus).
 8. Idee di Tonysa87: **indice di partenza** già pronto + controllo periodico delle novità (fatto:
    `--seed-index`, `--check-hours 24`); **cartella dati scelta nell'add-on** (il server ha già
@@ -78,6 +78,10 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 ## Ultime cose fatte (1/11/2026, sera)
 
 - Fase 3 verificata da Tonysa87 su Windows (motore 829 MB → 334 MB, materiali e misure giusti).
+- **Add-on 0.4.1 verificato da Tonysa87 su Windows (1/11 sera)**: server avviato da Blender, anteprime in
+  background, pistone convertito in 7 s e listing ricaricato da solo (hash vero, nessun avviso), nessuna
+  console, "Append, editable" → empty genitore + pezzi locali modificabili (Tonysa87 lo tiene così), dopo il
+  riavvio cache di Blender spostata via junction in `simready_cache\blender-cache\`.
 - Nomi: asset di un pezzo = oggetto **e mesh** col nome dell'asset (decisione di Tonysa87, `07d4f4f`).
 - Server: niente copia dei .blend dopo la consegna, stima della dimensione, comandi `/_control/*`.
 - **Add-on (fase 4)**: `addon/`, zip con `tools/build_extension.py` → `dist/simready_library-0.4.0.zip`
@@ -95,12 +99,9 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 
 ## Prossimi passi
 
-1. **Tonysa87 prova l'add-on su Windows** (spegnere prima il server WSL sulla 8765): installazione,
-   cartella dati su E:, riavvio (migrazione della cache), download con reload automatico,
-   modalità Append modificabile, nessuna finestra di console durante le conversioni.
-2. Correggere quanto emerge dal test; poi fase 5 (robustezza): asset enormi, errori di rete,
+1. Fase 5 (robustezza): asset enormi, errori di rete,
    albedo JPEG (misurare), conversione deterministica (stesso hash a parità di input).
-3. Fase 6: repo pubblico (decisione di Tonysa87), file LICENSE GPL, pulizia degli script di sviluppo.
+2. Fase 6: repo pubblico (decisione di Tonysa87), file LICENSE GPL, pulizia degli script di sviluppo.
 
 ## Come riprendere
 
