@@ -43,6 +43,7 @@ def main() -> None:
         shutil.copytree(ROOT / "addon", src, ignore=SKIP)
         shutil.copytree(ROOT / "simready", src / "simready", ignore=SKIP)
         (src / "LICENSE-ASSETS.txt").write_text(ASSET_NOTICE, encoding="utf-8")
+        shutil.copy2(ROOT / "LICENSE", src / "LICENSE")
         a.out.mkdir(parents=True, exist_ok=True)
         for cmd in (["validate", str(src)], ["build", "--source-dir", str(src), "--output-dir", str(a.out)]):
             p = subprocess.run([a.blender, "--factory-startup", "--command", "extension", *cmd],

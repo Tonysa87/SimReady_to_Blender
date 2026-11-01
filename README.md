@@ -1,13 +1,32 @@
 # SimReady to Blender
 
+> **English summary.** A Blender 5.2 add-on that puts the ~2,700 **NVIDIA SimReady** assets
+> ([`nvidia/simready-assets`](https://huggingface.co/datasets/nvidia/simready-assets), CC-BY-4.0)
+> in Blender's **Asset Browser** as a remote asset library, with catalogs and thumbnails. When you
+> download an asset, a small local server (127.0.0.1) fetches it from Hugging Face and converts it
+> on the spot: USD → .blend, OmniPBR/MDL materials → Principled BSDF, real-world scale.
+>
+> **Install**: Blender 5.2 → *Preferences → Get Extensions → ⌄ → Install from Disk…* →
+> `simready_library-<version>.zip` from the [Releases](https://github.com/Tonysa87/SimReady_to_Blender/releases);
+> enable *Preferences → System → Allow Online Access*; in the add-on preferences pick a **Data Folder**
+> and restart Blender once. Then: Asset Browser → *NVIDIA SimReady* → download an asset with the
+> button on its tile → drag it into the scene. First download of an asset takes from a few seconds
+> to a few minutes (conversion). Tested on Windows 11; experimental, made with Claude.
+>
+> **Credits**: all 3D assets © **NVIDIA Corporation**, [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets),
+> licensed [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/). Assets are not included here:
+> they are downloaded from Hugging Face on your computer. Changes made: USD converted to .blend,
+> materials translated to Principled BSDF, textures optionally downscaled, physics variants and USD
+> instancing removed, thumbnails resized. Not affiliated with or endorsed by NVIDIA.
+> Code: GPL-3.0-or-later (see `LICENSE`).
+
 Gli asset NVIDIA **SimReady** ([`nvidia/simready-assets`](https://huggingface.co/datasets/nvidia/simready-assets),
 ~2.677 asset, CC-BY-4.0) direttamente nell'**Asset Browser di Blender 5.2 LTS**, come una
 libreria remota qualsiasi. Si vedono tutti subito, con anteprime e cataloghi; un asset viene
 scaricato da Hugging Face e **convertito in .blend al momento del download**.
 
-> Stato: **fase 4 in prova** — add-on installabile (`dist/simready_library-<versione>.zip`,
-> generato con `tools/build_extension.py`). Server verificato sul Blender Windows (fase 3).
-> Dettagli in `SEGNALIBRO.md` e `docs/`.
+> Stato: **0.4.1, verificata su Blender 5.2 Windows** (fasi 1–4 completate). Lo .zip si scarica
+> dalle Releases o si genera con `tools/build_extension.py`. Dettagli in `SEGNALIBRO.md` e `docs/`.
 
 ## Crediti
 
@@ -111,7 +130,7 @@ la sessione (vedi i bug documentati in `docs/fase1-report.md`).
 
 ## Licenze
 
-- Codice: GPL-3.0-or-later (file `LICENSE` da aggiungere).
+- Codice: GPL-3.0-or-later (file `LICENSE`).
 - Asset: © NVIDIA Corporation, [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/).
   L'indice di partenza (`simready/server/data/`) contiene solo metadati derivati dal dataset
   NVIDIA (nomi, dimensioni, impronte dei file), stessa licenza e attribuzione.
