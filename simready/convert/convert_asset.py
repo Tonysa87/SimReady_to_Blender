@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pxr import Sdf, Usd, UsdGeom  # noqa: E402
 
 from simready import common  # noqa: E402
-from simready.convert import usd_hook  # noqa: E402
+from simready.convert import blend_normalize, usd_hook  # noqa: E402
 
 PREVIEW_SIZE = 256
 PHYSICS_VARIANT_OFF = "Disabled"
@@ -269,6 +269,23 @@ def set_preview(id_: bpy.types.ID, thumb: Path, info: dict) -> None:
 # ------------------------------------------------------------------------ main
 
 
+def save_reproducible(path: Path, info: dict) -> None:
+    """Save compressed and byte-for-byte reproducible (same input -> same hash, see
+    blend_normalize). Falls back to Blender's own compressed save if that fails."""
+    raw = path.with_suffix(".raw")
+    t = time.time()
+    try:
+        bpy.ops.wm.save_as_mainfile(filepath=str(raw), compress=False, copy=True)
+        info["normalize"] = blend_normalize.normalize(raw)
+        blend_normalize.compress(raw, path)
+    except Exception as e:
+        info["warnings"].append(f"reproducible save failed, plain save used: {e}")
+        bpy.ops.wm.save_as_mainfile(filepath=str(path), compress=True, copy=True)
+    finally:
+        raw.unlink(missing_ok=True)
+    info["timings"]["save"] = round(time.time() - t, 2)
+
+
 def main() -> int:
     args = parse_args()
     asset_dir = args.asset_dir.resolve()
@@ -328,7 +345,7 @@ def main() -> int:
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     tmp_out = args.out.with_suffix(".blend.tmp")
-    bpy.ops.wm.save_as_mainfile(filepath=str(tmp_out), compress=True, copy=True)
+    save_reproducible(tmp_out, info)
     tmp_out.replace(args.out)
     info["out_bytes"] = args.out.stat().st_size
     info["timings"]["total"] = round(time.time() - t0, 2)

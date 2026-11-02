@@ -49,8 +49,8 @@ Estensione Blender 5.2 (`addon/` + pacchetto `simready/`, zip costruito da `tool
 
 ## Limiti noti
 
-- Un asset riconvertito (cache di Blender svuotata) ha un hash diverso: la conversione non è
-  bit-per-bit identica. Un secondo Blender con la copia vecchia lo vede "da aggiornare".
+- ~~Un asset riconvertito (cache di Blender svuotata) ha un hash diverso~~: risolto nella fase 5,
+  la conversione ora è bit-per-bit identica (`docs/fase5-report.md`).
 - La migrazione della cache tra dischi diversi (C: → E:) avviene all'avvio di Blender e lo
   rallenta per qualche secondo (≈ 0,5 GB nel caso di Tonysa87).
 - Cambiare porta o cartella dati richiede il riavvio di Blender.
