@@ -51,3 +51,28 @@ le copie già in cache restano valide.
   correttamente, tabella seekable come la legge `filereader_zstd.cc`).
 - Nota: gli operatori BMesh (es. `primitive_uv_sphere_add`) non sono riproducibili nell'ordine dei
   corner; l'import USD costruisce le mesh direttamente e lo è.
+
+## 2. Errori di rete ✅
+
+- **Ripresa dei download** (`hf.py`): se la connessione cade, il file riprende dal byte a cui si era
+  fermato (richiesta `Range`, verificata sul CDN di HF: risponde 206 con `Content-Range`). Se il
+  server ignora il Range si riparte da zero e l'avanzamento viene corretto. Si rinuncia dopo 4
+  tentativi di fila senza byte nuovi. Nota: `http.client` non solleva `IncompleteRead` quando la
+  connessione si chiude prima di `Content-Length`, restituisce `b""`: anche quello conta come caduta.
+- **Tipo di errore** su ogni `HFError`: `offline`, `rate_limit`, `server`, `auth`, `not_found`,
+  `http`, `integrity`, `cancelled`. Senza DNS o con connessione rifiutata il client rinuncia in
+  pochi secondi invece di aspettare un minuto.
+- **Messaggi per l'utente** (`jobs.describe`): l'evento `error` ora ha `kind`, `message` (frase breve
+  in inglese, mostrata dall'add-on nella barra di stato per 60 s e nelle preferenze per un'ora) e
+  `detail` (testo tecnico). Errori del convertitore: disco pieno, memoria esaurita (exit -9 /
+  `0xC0000017`), timeout, altrimenti l'ultima riga d'errore del log di Blender.
+- **Rate limit visibile**: durante l'attesa il job mostra "Hugging Face rate limit, waiting N s".
+- **Spazio su disco**: prima del download e prima della conversione il server controlla lo spazio
+  libero (file mancanti + 2 × dimensione dell'asset + 256 MB) e, se non basta, lo dice con i numeri.
+- **Pulizia all'avvio**: `.part`, `.tmp.blend`, `.raw`, .blend non più registrati in `state.json`;
+  i download di job falliti restano 7 giorni (un nuovo tentativo li riusa, senza riscaricarli).
+- **Senza internet** (provato con un proxy inesistente): la libreria resta completa dall'indice
+  salvato, l'add-on dice che il controllo degli aggiornamenti non è riuscito, e chiedere un asset
+  nuovo dà in 3 s "Hugging Face is unreachable: check the internet connection and try again".
+- Test: `tests/test_hf.py` (finto HF: cadute, Range ignorato, 503, 429, checksum sbagliato, 404,
+  rete assente, annullamento; spazio su disco, messaggi del convertitore, pulizia).

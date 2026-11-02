@@ -21,6 +21,8 @@ from . import cache_link, importer, library
 from .runtime import RUNTIME
 
 TIMER_EVERY = 1.0
+ERROR_SHOWN_STATUSBAR = 60   # seconds a failed conversion stays in the status bar
+ERROR_SHOWN_PREFS = 3600     # ... and in the add-on preferences
 _state = {"cache": ("", ""), "library_problem": "", "registered_url": ""}
 
 
@@ -131,8 +133,12 @@ class SIMREADY_AddonPreferences(bpy.types.AddonPreferences):
             if idx.get("building"):
                 text += f" — updating index {idx.get('done', 0)}/{idx.get('total', 0)}"
             box.label(text=text)
+            if idx.get("error") and not idx.get("building"):
+                box.label(text="Could not check Hugging Face for updates: the saved list is used", icon='INFO')
             for asset, job in (st.get("jobs") or {}).items():
                 box.label(text=_job_text(asset, job), icon='TIME')
+            if RUNTIME.recent_error[0] and time.time() - RUNTIME.recent_error[1] < ERROR_SHOWN_PREFS:
+                box.label(text="Last problem: " + RUNTIME.recent_error[0], icon='ERROR')
         else:
             row.label(text="Server not running", icon='ERROR')
         row = box.row(align=True)
@@ -161,6 +167,8 @@ class SIMREADY_AddonPreferences(bpy.types.AddonPreferences):
 
 def _job_text(asset: str, job: dict) -> str:
     stage = job.get("stage", "")
+    if stage == "download" and job.get("wait"):
+        return f"{asset}: Hugging Face rate limit, waiting {job['wait']} s"
     if stage == "download" and job.get("total"):
         return f"{asset}: downloading {100 * job.get('bytes', 0) / job['total']:.0f}%"
     if stage == "convert":
@@ -233,7 +241,7 @@ def draw_statusbar(self, context):
         asset, job = next(iter(jobs.items()))
         more = f" (+{len(jobs) - 1})" if len(jobs) > 1 else ""
         self.layout.label(text="SimReady: " + _job_text(asset, job) + more, icon='IMPORT')
-    elif RUNTIME.recent_error[0] and time.time() - RUNTIME.recent_error[1] < 30:
+    elif RUNTIME.recent_error[0] and time.time() - RUNTIME.recent_error[1] < ERROR_SHOWN_STATUSBAR:
         self.layout.label(text="SimReady: " + RUNTIME.recent_error[0], icon='ERROR')
 
 
@@ -290,7 +298,7 @@ def _tick_inner(p) -> None:
         if ev.get("type") in ("delivered", "index"):
             RUNTIME.reload_at = time.time() + 1.0
         elif ev.get("type") == "error":
-            RUNTIME.recent_error = (f"{ev.get('asset')}: conversion failed (see the server log)", time.time())
+            RUNTIME.recent_error = (f"{ev.get('asset')}: {ev.get('message') or 'conversion failed'}", time.time())
     if RUNTIME.reload_at and time.time() >= RUNTIME.reload_at and lib is not None:
         try:
             started = library.reload_listing(lib)

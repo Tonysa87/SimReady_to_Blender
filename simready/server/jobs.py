@@ -4,13 +4,16 @@ the BOM sha256) -> headless Blender running simready/convert/convert_asset.py
 -> .blend in the cache, with its real hash and size recorded in state.json.
 
 Concurrent requests for the same asset share one job (single flight).
+A failed job is reported as an event with a `kind` and a short message for the user.
 """
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import logging
+import re
 import shutil
 import subprocess
 import threading
@@ -22,7 +25,7 @@ from pathlib import Path
 
 from .. import common
 from .catalogs import catalog_uuid
-from .hf import HFClient, sha256_file
+from .hf import HFClient, HFError, sha256_file
 from .index import AssetRecord
 
 log = logging.getLogger("simready.jobs")
@@ -43,6 +46,57 @@ class Settings:
     timeout: int = 3600          # per conversion, seconds
 
 
+DISK_MARGIN = 256 << 20       # bytes kept free besides the estimate
+RAW_MAX_AGE = 7 * 86400       # downloads of failed jobs are kept this long (a retry reuses them)
+
+
+class JobError(RuntimeError):
+    """A failure with a known cause: `kind` + a message meant for the user."""
+
+    def __init__(self, kind: str, message: str) -> None:
+        super().__init__(message)
+        self.kind = kind
+
+
+HF_MESSAGES = {
+    "offline": "Hugging Face is unreachable: check the internet connection and try again",
+    "rate_limit": "Hugging Face rate limit reached: try again in a few minutes (a token raises the limit)",
+    "server": "Hugging Face is having problems (server error): try again later",
+    "auth": "Hugging Face refused the request: check the token in the add-on preferences",
+    "not_found": "a file is missing on Hugging Face (the dataset changed?): use Check for Updates",
+    "integrity": "a downloaded file is damaged (checksum mismatch): try again",
+    "cancelled": "download cancelled",
+    "http": "Hugging Face answered with an error",
+}
+
+
+def describe(e: BaseException) -> tuple[str, str]:
+    """(kind, short message for the user) of a failed job."""
+    if isinstance(e, JobError):
+        return e.kind, str(e)
+    if isinstance(e, HFError):
+        return e.kind, HF_MESSAGES.get(e.kind, HF_MESSAGES["http"])
+    if isinstance(e, OSError) and e.errno == errno.ENOSPC:
+        return "disk_full", "the disk of the data folder is full"
+    return "internal", f"unexpected error: {e}"[:200]
+
+
+def _gb(n: float) -> str:
+    return f"{n / 1e9:.1f} GB"
+
+
+def _converter_error(code: int, text: str) -> JobError:
+    """Explain a failed Blender run from its exit code and log."""
+    if "No space left" in text or "not enough space" in text.lower():
+        return JobError("disk_full", "the disk of the data folder is full")
+    if code in (-9, 137, 0xC0000017, 3221225477) or "MemoryError" in text or "out of memory" in text.lower():
+        return JobError("memory", "Blender stopped during the conversion (out of memory?)")
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    errs = [l for l in lines if re.search(r"(Error|Exception)\b", l) and not l.startswith("File ")]
+    hint = (errs[-1] if errs else (lines[-1] if lines else ""))[:160]
+    return JobError("converter", f"conversion failed (exit {code}): {hint}" if hint else f"conversion failed (exit {code})")
+
+
 def _child_kwargs() -> dict:
     """Converter processes: own process group (Linux) so they can be killed together."""
     import os
@@ -50,6 +104,14 @@ def _child_kwargs() -> dict:
         # blender.exe is a console program: without CREATE_NO_WINDOW every conversion opens a console.
         return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW}
     return {"start_new_session": True}
+
+
+def _unlink(p: Path) -> int:
+    try:
+        p.unlink()
+        return 1
+    except OSError:  # Windows: still open somewhere
+        return 0
 
 
 def _replace(src: Path, dst: Path, tries: int = 10) -> None:
@@ -113,6 +175,34 @@ class Converter:
         self.senders: dict[str, int] = {}
         self.progress: dict[str, dict] = {}
         self.lock = threading.Lock()
+        self._cleanup()
+
+    def _cleanup(self) -> None:
+        """Leftovers of a crash or a hard stop: partial downloads, temporary .blend files,
+        versions no longer referenced and (unless keep_raw) old downloads of failed jobs."""
+        removed = 0
+        raw_root = self.s.state_dir / "raw"
+        if raw_root.is_dir():
+            for p in raw_root.rglob("*.part"):
+                removed += _unlink(p)
+            if not self.s.keep_raw:
+                for d in raw_root.iterdir():
+                    try:
+                        if d.is_dir() and time.time() - d.stat().st_mtime > RAW_MAX_AGE:
+                            shutil.rmtree(d, ignore_errors=True)
+                            removed += 1
+                    except OSError:
+                        pass
+        blend_root = self.s.state_dir / "blend"
+        if blend_root.is_dir():
+            with self.state.lock:
+                known = {e.get("file") for e in self.state.data.values()}
+            for p in blend_root.rglob("*"):
+                if p.is_file() and (".tmp.blend" in p.name or p.suffix == ".raw"
+                                    or (p.suffix == ".blend" and p.name not in known)):
+                    removed += _unlink(p)
+        if removed:
+            log.info("cleanup: removed %d leftover files/folders", removed)
 
     # ----------------------------------------------------------------- paths
 
@@ -183,8 +273,13 @@ class Converter:
             return fut
 
     def running(self) -> dict[str, dict]:
+        wait = round(self.hf.limiter.remaining("resolvers"))
         with self.lock:
-            return {a: dict(p) for a, p in self.progress.items()}
+            jobs = {a: dict(p) for a, p in self.progress.items()}
+        for p in jobs.values():
+            if wait and p.get("stage") == "download":
+                p["wait"] = wait  # paused by the Hugging Face rate limit
+        return jobs
 
     def _stage(self, rec: AssetRecord, stage: str, **extra) -> None:
         with self.lock:
@@ -196,7 +291,9 @@ class Converter:
             done = self.blend_path(rec)
             if done:  # converted while queued
                 return done
+            self._check_space(rec, download=True)
             self._download(rev, rec)
+            self._check_space(rec, download=False)
             out = self._convert(rec, self._preview(rev, rec))
             dt = time.time() - t0
             self.on_event({"type": "converted", "asset": rec.id, "seconds": round(dt, 1),
@@ -206,12 +303,37 @@ class Converter:
                 shutil.rmtree(self.raw_dir(rec), ignore_errors=True)
             return out
         except Exception as e:
-            log.error("conversion of %s failed: %s", rec.id, e)
-            self.on_event({"type": "error", "asset": rec.id, "message": str(e)[-400:]})
+            kind, message = describe(e)
+            log.error("conversion of %s failed (%s): %s", rec.id, kind, e)
+            self.on_event({"type": "error", "asset": rec.id, "kind": kind, "message": message,
+                           "detail": str(e)[-400:]})
             raise
         finally:
             with self.lock:
                 self.progress.pop(rec.id, None)
+
+    def _space_needed(self, rec: AssetRecord, download: bool) -> int:
+        """Bytes the job still needs: missing downloads + the .blend files written while saving
+        (uncompressed copy and final file, at most about the size of the inputs each)."""
+        missing = 0
+        if download:
+            raw = self.raw_dir(rec)
+            for rel, size, _sha in rec.files:
+                try:
+                    if (raw / rel).stat().st_size == size:
+                        continue
+                except OSError:
+                    pass
+                missing += size
+        return missing + 2 * rec.useful_bytes + DISK_MARGIN
+
+    def _check_space(self, rec: AssetRecord, download: bool) -> None:
+        self.s.state_dir.mkdir(parents=True, exist_ok=True)
+        free = shutil.disk_usage(self.s.state_dir).free
+        need = self._space_needed(rec, download)
+        if free < need:
+            raise JobError("disk_full", f"not enough disk space in the data folder: {rec.id} needs about "
+                                        f"{_gb(need)}, {_gb(free)} free")
 
     def _download(self, rev: str, rec: AssetRecord) -> None:
         raw = self.raw_dir(rec)
@@ -231,7 +353,8 @@ class Converter:
             if failed.is_set():
                 return
             try:
-                self.hf.download(rev, f"{rec.id}/{rel}", raw / rel, size, sha, tick, cancel=failed.is_set)
+                if not self.hf.download(rev, f"{rec.id}/{rel}", raw / rel, size, sha, tick, cancel=failed.is_set):
+                    tick(size)  # already there (kept from an earlier, failed job)
             except Exception:
                 failed.set()
                 raise
@@ -243,8 +366,8 @@ class Converter:
                 f.result()
             except Exception as e:
                 errors.append(e)
-        if errors:
-            raise errors[0]
+        if errors:  # the cause, not the "cancelled" of the files stopped because of it
+            raise next((e for e in errors if getattr(e, "kind", "") != "cancelled"), errors[0])
 
     def _preview(self, rev: str, rec: AssetRecord) -> Path | None:
         if not self.preview_of or not rec.thumb:
@@ -278,13 +401,14 @@ class Converter:
                 except subprocess.TimeoutExpired:
                     proc.kill()
                     proc.wait()
-                    raise RuntimeError(f"conversion took more than {self.s.timeout} s")
+                    raise JobError("timeout", f"conversion stopped after {self.s.timeout // 60} minutes")
                 finally:
                     with self.lock:
                         self.children.discard(proc)
             text = log_path.read_text(encoding="utf-8", errors="replace")
             if code != 0 or "SIMREADY_CONVERT_OK" not in text or not out.is_file():
-                raise RuntimeError(f"converter failed (exit {code}): {text[-600:]}")
+                log.error("%s: converter log tail:\n%s", rec.id, text[-1500:])
+                raise _converter_error(code, text)
             info = json.loads(report.read_text(encoding="utf-8"))
             h = sha256_file(out)
             final = bdir / f"{rec.id}.{h[:16]}.blend"  # new name per content: never replace a file being served
