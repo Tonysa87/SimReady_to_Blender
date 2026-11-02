@@ -2,7 +2,7 @@
 
 > Ponte tra sessioni di Claude Code: si aggiorna con `/segnalibro` prima di `/clear` o a fine
 > giornata. CLAUDE.md lo importa, quindi viene letto all'inizio di ogni sessione.
-> Ultimo aggiornamento: **1/11/2026, tarda sera** (chiusa l'anonimizzazione di FTC; si riparte dalla fase 5).
+> Ultimo aggiornamento: **2/11/2026, mattina** (fase 5: fatti i punti 3 e 2, a metà i punti 1 e 4).
 
 ## Il progetto in breve
 
@@ -13,7 +13,7 @@ un .blend, il server scarica l'asset da HF, lo converte (Blender headless) e lo 
 stessa risposta; poi il listing viene ricaricato con l'hash reale. Un add-on avvierà il server e
 gestirà la libreria. Brief completo: `docs/brief.md`.
 
-Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificato su Windows) · 4 add-on ✅ (verificato su Windows) · **5 robustezza ⏳ (prossima)** · 6 packaging.
+Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificato su Windows) · 4 add-on ✅ (verificato su Windows) · **5 robustezza ⏳ (in corso: punti 3 e 2 fatti)** · 6 packaging.
 
 ## Stato attuale
 
@@ -21,9 +21,10 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
   WebP; conversione on demand con keep-alive gzip (anche > 300 s). Report: `docs/fase3-report.md`.
 - Gira col **Python incluso in Blender** (pxr, OpenImageIO, numpy, certifi; verificato anche il
   `python.exe` del Blender Windows di Tonysa87). Nessuna dipendenza esterna.
-- **Acceso sulla porta 8765** il server nuovo, cartella `<cartella dati>\simready_test\phase3`
-  (il vecchio server di fase 2 è stato fermato; la sua cartella `phase2` è intatta).
-- Test: `python3 -m unittest discover -s tests` (43 test; quelli pxr girano col Python di Blender).
+- La porta 8765 è del server avviato dall'add-on su Windows; in WSL per lo sviluppo si usa la 8790.
+- Test: `python3 -m unittest discover -s tests` (69 test; quelli pxr/zstd/Blender girano col Python di Blender).
+- **Fase 5** in corso, report: `docs/fase5-report.md`. Conversioni riproducibili (stesso hash) ed
+  errori di rete gestiti sono su `main`, **non ancora in uno zip per Windows** (l'add-on resta 0.4.1).
 - Repository **pubblico**: https://github.com/Tonysa87/SimReady_to_Blender (`main`), push autorizzato.
   Release **v0.4.1** con lo zip: https://github.com/Tonysa87/SimReady_to_Blender/releases/tag/v0.4.1.
   La vecchia storia (con dati personali) resta nel repo privato `SimReady_to_Blender_old_private`.
@@ -56,6 +57,9 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 13. Fase 4: Claude sviluppa e audita l'add-on in autonomia, senza approvazione del piano; Tonysa87 lo testa su Windows.
 14. Tarda sera: chiuso il lavoro su FTC, **la prossima sessione prosegue con la fase 5**.
 
+2/11/2026:
+15. Piano della fase 5 approvato ("vai pure come ritieni opportuno"): ordine 3 → 2 → 1 → 4.
+
 ## Fatti tecnici da non dimenticare
 
 - Libreria remota: si crea solo con `bpy.ops.preferences.asset_library_add(type='REMOTE', ...)`.
@@ -76,17 +80,25 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
   con `-s -E -m simready.server` dalla radice del repo (`-I` esclude la cartella corrente).
 - L'import di Blender non passa all'USDHook i materiali dentro istanze USD → il wrapper le de-istanzia.
 - Normal map SimReady = DirectX. Import Pack/Append: comanda il menu "Import Settings" dell'Asset Browser.
+- .blend non riproducibili per 4 campi: `ID.session_uid`, `bNode.identifier` (casuale), `Mesh.face_sets_color_seed`
+  (secondo corrente), `ScrEdge.v1/v2`; più lo zstd multithread. `blend_normalize.py` li sistema leggendo la DNA
+  del file. Gli operatori BMesh (es. sfera UV) non sono riproducibili: nei test usare `from_pydata`.
+- `http.client` non solleva `IncompleteRead` se la connessione cade prima di `Content-Length`: restituisce `b""`.
+  Il CDN di HF (`cas-bridge`/`cdn.hf.co`) accetta `Range` anche dopo il redirect (206).
 - Dettagli: `docs/fase1-report.md`, `docs/fase3-report.md`, `docs/ricerca-materiali.md`.
 
-## Ultime cose fatte (1/11/2026, tarda sera)
+## Ultime cose fatte (2/11/2026, mattina)
 
-- Sessione dedicata a un altro progetto: **anonimizzazione del repo pubblico FTC** completata (storia
-  riscritta con autore Tonysa87 noreply, tag e zip delle release ripuliti, verificato su un clone nuovo;
-  i commit locali non pubblicati di FTC restano in locale). Nessuna modifica al codice di questo repo.
-- Restano fuori da questo repo: `lichtfeld-zup-view` (solo nome come autore) e le impostazioni email di
-  GitHub da attivare a mano; note in `~/FTC-anonimizzazione.md`.
-- Stato di SimReady invariato: add-on **0.4.1** verificato su Windows, release v0.4.1 pubblica,
-  repo pulito su `main`. Nessun server acceso in WSL.
+- **Conversioni riproducibili** (`67bdb86`): `simready/convert/blend_normalize.py` + `save_reproducible`;
+  10 asset casuali riconvertiti da zero = stesso sha256, contenuto identico al salvataggio di Blender.
+  `CONVERTER_VERSION` non cambiato (le cache esistenti restano valide).
+- **Errori di rete** (`b62bfbb`): download ripresi con Range, errori con `kind` e messaggio per l'utente
+  (mostrato dall'add-on), attesa del rate limit visibile, controllo spazio su disco, pulizia all'avvio.
+  Provato anche "senza internet" (proxy finto): errore chiaro in 3 s, libreria navigabile.
+- **Asset enormi** (prima misura): `equipment_robot_trolley_a01` (1,77 GB) → download ~170 s,
+  conversione 18 s, picco RAM 2 GB, .blend 96 MB (solo geometria).
+- **JPEG**: script `tools/phase5/measure_jpeg.py` pronto, prima prova interrotta per tempo (lento sulle 4K).
+- Nulla acceso: server di sviluppo (8790) e misura fermati. Dati di prova nello scratchpad della sessione (temporanei).
 
 ## Domande aperte per Tonysa87
 
@@ -95,14 +107,13 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 
 ## Prossimi passi
 
-1. **Fase 5 (robustezza) — si parte da qui** (indicazione di Tonysa87, 1/11 sera). Primo passo: proporre
-   a Tonysa87 il piano della fase 5 e aspettare l'ok. Temi:
-   - asset enormi (tempi, memoria, dimensione dei .blend; keep-alive già pronto);
-   - errori di rete (HF irraggiungibile, rate limit, download interrotti, retry) con messaggi chiari in Blender;
-   - conversione deterministica (stesso hash a parità di input, così il reload non invalida la cache);
-   - albedo in JPEG: misurare il guadagno di spazio e la perdita di qualità prima di decidere.
-2. Fase 6 (packaging): repo pubblico e LICENSE GPL già fatti; restano pulizia degli script di sviluppo,
-   eventuale pubblicazione su Blender Extensions, nuova release.
+1. **Fase 5, punto 1 (asset enormi)**: convertire un asset grande *con molte texture* a Max e a 2K
+   (memoria, tempo, dimensione del .blend) e rivedere la stima dello spazio su disco in `jobs._space_needed`.
+2. **Fase 5, punto 4 (JPEG)**: far girare `measure_jpeg.py` su un campione (o in parallelo), poi
+   proporre a Tonysa87 numeri e 2-3 render affiancati: decide lui.
+3. Zip 0.5.0 dell'add-on per il test su Windows di Tonysa87: messaggi d'errore in Blender (provare a
+   staccare la rete durante un download), riconversione con stesso hash.
+4. Fase 6 (packaging): pulizia degli script di sviluppo, eventuale Blender Extensions, nuova release.
 
 ## Come riprendere
 

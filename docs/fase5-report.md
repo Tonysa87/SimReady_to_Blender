@@ -76,3 +76,21 @@ le copie già in cache restano valide.
   nuovo dà in 3 s "Hugging Face is unreachable: check the internet connection and try again".
 - Test: `tests/test_hf.py` (finto HF: cadute, Range ignorato, 503, 429, checksum sbagliato, 404,
   rete assente, annullamento; spazio su disco, messaggi del convertitore, pulizia).
+
+## 1. Asset enormi ⏳ (prime misure)
+
+- Dimensioni dei download (indice): mediana 35 MB, 90° percentile 260 MB, 99° 753 MB; 86 asset
+  sopra 500 MB, 8 sopra 1 GB (il più grande `equipment_robot_trolley_a01`, 1,77 GB, 42 file).
+- `equipment_robot_trolley_a01` a 2K (WSL, 32 core, rete di casa): download ~170 s (~10 MB/s),
+  conversione 18 s (import USD 5,9 s, salvataggio riproducibile 0,45 s), **picco di memoria di
+  Blender 2,0 GB**, .blend di 96 MB. È quasi tutta geometria: nessuna texture.
+  Il keep-alive gzip ha tenuto aperta la risposta per tutti i 190 s.
+- Da fare: un asset grande *con molte texture* a Max e a 2K (memoria e dimensione del .blend),
+  rivedere la stima dello spazio su disco (oggi: file mancanti + 2 × asset + 256 MB) con i numeri veri.
+
+## 4. Albedo in JPEG ⏳
+
+- Nel dataset le albedo sono ~65 GB su 221 GB di PNG (29%): il guadagno massimo possibile riguarda
+  solo questa parte. Script pronto: `tools/phase5/measure_jpeg.py` (PNG vs JPEG q90/q95, 4:4:4 e
+  4:2:0, PSNR e SSIM, albedo con trasparenza escluse). Prima prova su 48 albedo interrotta per
+  tempo: è lento sulle 4K (da far girare in parallelo o su un campione).
