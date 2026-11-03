@@ -4,7 +4,7 @@
 Meant for Blender's bundled Python (it has OpenImageIO and pxr):
 
   <blender>/5.2/python/bin/python3.13 -m simready.server --state-dir DIR [--port 8765]
-      [--max-res 2048] [--blender PATH] [--mirror cache/raw] [--parent-pid PID]
+      [--max-res 2048] [--color-jpeg] [--blender PATH] [--mirror cache/raw] [--parent-pid PID]
 """
 
 from __future__ import annotations
@@ -80,6 +80,8 @@ def main(argv=None) -> None:
     ap.add_argument("--state-dir", type=Path, required=True)
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--max-res", type=int, default=2048, choices=(0, 4096, 2048, 1024))
+    ap.add_argument("--color-jpeg", action="store_true",
+                    help="pack opaque color textures as JPEG q95 (about 25%% smaller .blend files)")
     ap.add_argument("--blender", type=Path, default=None)
     ap.add_argument("--workers", type=int, default=1, help="parallel conversions")
     ap.add_argument("--keep-raw", action="store_true", help="keep downloaded USD/textures after conversion")
@@ -123,7 +125,7 @@ def main(argv=None) -> None:
         sys.exit(2)
 
     settings = Settings(blender=blender, state_dir=a.state_dir.resolve(), max_res=a.max_res,
-                        workers=a.workers, keep_raw=a.keep_raw, keep_blend=a.keep_blend)
+                        color_jpeg=a.color_jpeg, workers=a.workers, keep_raw=a.keep_raw, keep_blend=a.keep_blend)
     lib = Library(settings, HFClient(), mirror=a.mirror, revision=a.revision, refresh=not a.no_refresh,
                   prefetch_thumbs=a.prefetch_thumbs, seed_index=a.seed_index, check_hours=a.check_hours)
     _on_exit.append(lib.converter.kill_children)

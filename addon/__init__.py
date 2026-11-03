@@ -100,6 +100,11 @@ class SIMREADY_AddonPreferences(bpy.types.AddonPreferences):
                ('1024', "1K", "Textures larger than 1024 px are reduced")],
         default='2048', update=_restart_server,
         description="Applied when an asset is converted. Changing it marks downloaded assets as updatable")
+    color_jpeg: BoolProperty(
+        name="JPEG Color Textures", default=False, update=_restart_server,
+        description="Pack opaque color textures (albedo, emission) as high quality JPEG: .blend files "
+                    "about 25% smaller, no visible difference. Normal, roughness and other data "
+                    "textures always stay PNG. Changing it marks downloaded assets as updatable")
     import_mode: EnumProperty(
         name="Import",
         items=[('PACK', "Pack", "Blender's default: linked data packed into the file"),
@@ -157,6 +162,7 @@ class SIMREADY_AddonPreferences(bpy.types.AddonPreferences):
         col = layout.column()
         col.prop(self, "data_dir")
         col.prop(self, "max_res")
+        col.prop(self, "color_jpeg")
         col.prop(self, "import_mode")
         col.prop(self, "prefetch_thumbs")
         col.prop(self, "autostart")

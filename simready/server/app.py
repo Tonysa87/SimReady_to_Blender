@@ -43,7 +43,7 @@ from .thumbs import Thumbnails
 
 log = logging.getLogger("simready.server")
 
-SERVER_VERSION = "0.3"
+SERVER_VERSION = "0.4"
 EMPTY_STORED_BLOCK = b"\x00\x00\x00\xff\xff"  # non-final, zero-length stored deflate block
 # Blender checks its Cancel button once per 8 KB received: make each keep-alive a bit larger.
 KEEPALIVE = EMPTY_STORED_BLOCK * 1640
@@ -116,7 +116,7 @@ class Library:
         with self.lock:
             return {
                 "server": {"version": SERVER_VERSION, "converter": common.CONVERTER_VERSION,
-                           "max_res": self.s.max_res, "pid": os.getpid(), "state_dir": str(self.s.state_dir),
+                           "max_res": self.s.max_res, "color_jpeg": self.s.color_jpeg, "pid": os.getpid(), "state_dir": str(self.s.state_dir),
                            "keep_blend": self.s.keep_blend},
                 "generation": self.generation,
                 "index": {"revision": self.index.revision, "assets": len(self.index.assets),
@@ -182,7 +182,7 @@ class Library:
             if self._listing and self._listing[0] == self.generation:
                 return self._listing[1]
             gen, index, paths = self.generation, self.index, dict(self.catalog_paths)
-        body = build(index, paths, self.converter.current, self.s.max_res)
+        body = build(index, paths, self.converter.current, self.s.max_res, self.s.color_jpeg)
         with self.lock:
             self._listing = (gen, body)
         return body
@@ -426,5 +426,5 @@ def serve(lib: Library, httpd: Server, require_x_blender: bool = True) -> None:
     Handler.lib = lib
     Handler.port = httpd.server_address[1]
     Handler.require_x_blender = require_x_blender
-    log.info("serving on http://127.0.0.1:%d/ (state %s, max_res %d)", Handler.port, lib.s.state_dir, lib.s.max_res)
+    log.info("serving on http://127.0.0.1:%d/ (state %s, textures %s)", Handler.port, lib.s.state_dir, lib.s.profile)
     httpd.serve_forever()

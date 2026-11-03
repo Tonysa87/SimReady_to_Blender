@@ -39,11 +39,18 @@ class Settings:
     blender: Path
     state_dir: Path
     max_res: int = 2048          # 0 = original
+    color_jpeg: bool = False     # opaque color textures packed as JPEG q95 (smaller .blend)
     workers: int = 1             # parallel conversions
     download_threads: int = 4
     keep_raw: bool = False       # keep downloaded USD/textures after a successful conversion
     keep_blend: bool = False     # keep the .blend after delivering it (Blender keeps its own copy)
     timeout: int = 3600          # per conversion, seconds
+
+    @property
+    def profile(self) -> str:
+        """Texture settings of a conversion, part of the state key: "2048", "0-jpeg"...
+        (PNG keeps the plain resolution, so earlier conversions stay valid)."""
+        return f"{self.max_res}-jpeg" if self.color_jpeg else str(self.max_res)
 
 
 DISK_MARGIN = 256 << 20       # bytes kept free besides the estimate
@@ -126,13 +133,13 @@ def _replace(src: Path, dst: Path, tries: int = 10) -> None:
             time.sleep(0.2 * (i + 1))
 
 
-def placeholder_hash(rec: AssetRecord, max_res: int) -> str:
-    key = f"{rec.id}:{rec.content_digest}:{max_res}:{common.CONVERTER_VERSION}:pending"
+def placeholder_hash(rec: AssetRecord, profile: str | int) -> str:
+    key = f"{rec.id}:{rec.content_digest}:{profile}:{common.CONVERTER_VERSION}:pending"
     return hashlib.sha256(key.encode()).hexdigest()
 
 
 class State:
-    """Converted files: {"<asset>@<max_res>": {hash, size, id_type, name, content_digest, converter, time}}."""
+    """Converted files: {"<asset>@<profile>": {hash, size, id_type, name, content_digest, converter, time}}."""
 
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -142,19 +149,19 @@ class State:
         except (OSError, ValueError):
             self.data = {}
 
-    def get(self, rec: AssetRecord, max_res: int) -> dict | None:
+    def get(self, rec: AssetRecord, profile: str | int) -> dict | None:
         """The entry if it is current (same content, same converter). The file itself may be
         gone (delivered and dropped): the listing still announces the real hash."""
         with self.lock:
-            st = self.data.get(f"{rec.id}@{max_res}")
+            st = self.data.get(f"{rec.id}@{profile}")
         if not (st and st.get("file") and st.get("content_digest") == rec.content_digest
                 and st.get("converter") == common.CONVERTER_VERSION):
             return None
         return st
 
-    def put(self, rec: AssetRecord, max_res: int, entry: dict) -> None:
+    def put(self, rec: AssetRecord, profile: str | int, entry: dict) -> None:
         with self.lock:
-            self.data[f"{rec.id}@{max_res}"] = entry
+            self.data[f"{rec.id}@{profile}"] = entry
             tmp = self.path.with_name(self.path.name + ".tmp")
             tmp.write_text(json.dumps(self.data, indent=1, sort_keys=True), encoding="utf-8")
             tmp.replace(self.path)
@@ -210,11 +217,11 @@ class Converter:
         return self.s.state_dir / "raw" / rec.id
 
     def blend_dir(self, rec: AssetRecord) -> Path:
-        return self.s.state_dir / "blend" / f"res{self.s.max_res}" / rec.prefix
+        return self.s.state_dir / "blend" / f"res{self.s.profile}" / rec.prefix
 
     def current(self, rec: AssetRecord) -> dict | None:
         """Real hash/size/type/name of the converted asset (for the listing), or None."""
-        return self.state.get(rec, self.s.max_res)
+        return self.state.get(rec, self.s.profile)
 
     def blend_path(self, rec: AssetRecord) -> Path | None:
         """The converted file, if it is still on disk."""
@@ -388,6 +395,8 @@ class Converter:
                "--asset-dir", str(self.raw_dir(rec)), "--asset-id", rec.id, "--root", rec.root, "--out", str(out),
                "--max-res", str(self.s.max_res), "--catalog-id", catalog_uuid(self.catalog_path_of(rec.id)),
                "--tags", ",".join(common.asset_tags(rec.id)), "--report", str(report)]
+        if self.s.color_jpeg:
+            cmd.append("--color-jpeg")
         if preview:
             cmd += ["--preview", str(preview)]
         try:
@@ -421,7 +430,7 @@ class Converter:
         if (entry["id_type"], entry["name"]) != (rec.id_type, rec.name):
             log.warning("%s: predicted %s %r, converted %s %r", rec.id, rec.id_type, rec.name,
                         entry["id_type"], entry["name"])
-        self.state.put(rec, self.s.max_res, entry)
+        self.state.put(rec, self.s.profile, entry)
         for stale in bdir.glob(f"{rec.id}.*.blend"):  # older versions (may fail on Windows if open: retried later)
             if stale != final:
                 try:

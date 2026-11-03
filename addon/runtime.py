@@ -100,6 +100,8 @@ class Runtime:
                 "--parent-pid", str(os.getpid())]
         if prefs.prefetch_thumbs:
             args.append("--prefetch-thumbs")
+        if prefs.color_jpeg:
+            args.append("--color-jpeg")
         env = dict(os.environ)
         if prefs.hf_token:
             env["HF_TOKEN"] = prefs.hf_token  # environment, never the command line

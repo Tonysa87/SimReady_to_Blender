@@ -5,7 +5,8 @@ Run inside Blender (headless):
 
   blender -b --factory-startup --python simready/convert/convert_asset.py -- \
       --asset-dir cache/raw/<asset> --out out/<asset>.blend [--max-res 0|2048|1024] \
-      [--catalog-id UUID] [--tags a,b] [--report out/<asset>.json] [--normal-flip auto|on|off]
+      [--catalog-id UUID] [--tags a,b] [--report out/<asset>.json] [--normal-flip auto|on|off] \
+      [--color-jpeg]
 
 Steps: disable physics variants (wrapper layer) -> native USD import with our
 material hook -> single mesh => Object asset, several => Collection asset ->
@@ -42,6 +43,8 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--asset-id", default="")
     ap.add_argument("--max-res", type=int, default=0, help="0 = original resolution")
+    ap.add_argument("--color-jpeg", action="store_true",
+                    help="pack opaque color (sRGB) textures as JPEG q95 when that is clearly smaller")
     ap.add_argument("--catalog-id", default="")
     ap.add_argument("--tags", default="")
     ap.add_argument("--report", type=Path)
@@ -142,12 +145,51 @@ class ImageCache:
         return img
 
 
-def process_images(max_res: int, asset_dir: Path, info: dict) -> None:
+JPEG_QUALITY = 95          # 4:4:4; on SimReady albedos: median PSNR 46 dB, ~27% of the PNG (docs/fase5-report.md)
+JPEG_WORTH = 0.8           # keep the PNG unless the JPEG is at most 80% of it (flat textures compress better as PNG)
+
+
+def _color_jpeg(src: Path, size: tuple[int, int], png_bytes: int, tmp: Path) -> Path | None:
+    """`src` as a JPEG of `size` in `tmp`, or None if it is not worth it: real transparency,
+    or not clearly smaller than `png_bytes` (the PNG that would be packed). Written from the
+    pixels only (no metadata), so the same input gives the same bytes."""
+    import OpenImageIO as oiio
+    buf = oiio.ImageBuf(str(src))
+    spec = buf.spec()
+    if spec.nchannels not in (3, 4) or buf.has_error:
+        return None
+    if spec.nchannels == 4 and oiio.ImageBufAlgo.computePixelStats(buf).min[3] < 1.0:
+        return None
+    if (spec.width, spec.height) != size:
+        buf = oiio.ImageBufAlgo.resize(buf, roi=oiio.ROI(0, size[0], 0, size[1], 0, 1, 0, spec.nchannels))
+    px = buf.get_pixels(oiio.UINT8)[..., :3]
+    out_spec = oiio.ImageSpec(size[0], size[1], 3, oiio.UINT8)
+    out_spec.attribute("Compression", f"jpeg:{JPEG_QUALITY}")
+    out_spec.attribute("jpeg:subsampling", "4:4:4")
+    path = tmp / (src.stem + ".jpg")
+    out = oiio.ImageOutput.create(str(path))
+    if not out or not out.open(str(path), out_spec) or not out.write_image(px):
+        return None
+    out.close()
+    if path.stat().st_size > JPEG_WORTH * png_bytes:
+        path.unlink()
+        return None
+    return path
+
+
+def process_images(max_res: int, asset_dir: Path, info: dict, color_jpeg: bool = False) -> None:
     """Downscale file images above max_res and pack everything into the .blend.
 
+    With `color_jpeg`, opaque color textures (sRGB: albedo, emission) are packed as JPEG
+    when that is clearly smaller; data textures (normal, ORM, opacity) always stay PNG.
     Images whose file lies outside the asset folder (e.g. loaded by the native
     importer from a crafted absolute path) are removed, never packed.
     """
+    with tempfile.TemporaryDirectory(prefix="simready_tex_") as tmp:
+        _process_images(max_res, asset_dir, info, color_jpeg, Path(tmp))
+
+
+def _process_images(max_res: int, asset_dir: Path, info: dict, color_jpeg: bool, tmp: Path) -> None:
     out = []
     for img in list(bpy.data.images):
         if img.source != 'FILE' or img.packed_file:
@@ -162,11 +204,35 @@ def process_images(max_res: int, asset_dir: Path, info: dict) -> None:
         w, h = img.size
         entry = {"name": img.name, "file": Path(img.filepath).name, "orig": [w, h],
                  "colorspace": img.colorspace_settings.name, "bytes_orig": Path(bpy.path.abspath(img.filepath)).stat().st_size}
+        new = (w, h)
         if max_res and max(w, h) > max_res:
             f = max_res / max(w, h)
-            img.scale(max(1, round(w * f)), max(1, round(h * f)))
-            entry["new"] = list(img.size)
-        img.pack()
+            new = (max(1, round(w * f)), max(1, round(h * f)))
+        src = Path(bpy.path.abspath(img.filepath))
+        jpg = None
+        if color_jpeg and img.colorspace_settings.name == "sRGB":
+            # PNG size it replaces: the original file, or about that per pixel once reduced
+            png_bytes = entry["bytes_orig"] * (new[0] * new[1]) / max(1, w * h)
+            try:
+                jpg = _color_jpeg(src, new, png_bytes, tmp)
+            except Exception as e:  # unreadable for OIIO: keep Blender's PNG path
+                info["warnings"].append(f"JPEG skipped for {img.name}: {e}")
+        if jpg:
+            img.filepath = str(jpg)
+            img.reload()
+            img.pack()
+            # same place as the PNG, not the (random) temp folder: keeps the file reproducible
+            img.filepath_raw = str(src.with_suffix(".jpg"))
+            for pf in img.packed_files:
+                pf.filepath = img.filepath_raw
+            entry["jpeg"] = True
+            if new != (w, h):
+                entry["new"] = list(new)
+        else:
+            if new != (w, h):
+                img.scale(*new)
+                entry["new"] = list(img.size)
+            img.pack()
         entry["bytes_packed"] = img.packed_file.size if img.packed_file else None
         out.append(entry)
     info["textures"] = out
@@ -290,7 +356,7 @@ def main() -> int:
     args = parse_args()
     asset_dir = args.asset_dir.resolve()
     asset_id = args.asset_id or asset_dir.name
-    info: dict = {"asset": asset_id, "max_res": args.max_res, "warnings": [], "timings": {}}
+    info: dict = {"asset": asset_id, "max_res": args.max_res, "color_jpeg": args.color_jpeg, "warnings": [], "timings": {}}
     t0 = time.time()
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -332,7 +398,7 @@ def main() -> int:
     asset = organize(asset_id, info)
 
     t = time.time()
-    process_images(args.max_res, asset_dir, info)
+    process_images(args.max_res, asset_dir, info, color_jpeg=args.color_jpeg)
     info["timings"]["textures"] = round(time.time() - t, 2)
 
     tags = [t for t in args.tags.split(",") if t] or common.asset_tags(asset_id)

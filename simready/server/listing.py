@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 
 from .. import common
 from .catalogs import Catalogs, catalog_uuid
@@ -38,12 +39,18 @@ def thumb_relpath(rec: AssetRecord) -> str:
     return f"thumbs/{rec.id}.webp"
 
 
-def estimate_size(rec: AssetRecord, max_res: int) -> int:
+COLOR_TEXTURE = re.compile(r"(alb|albedo|basecolor|base_color|diffuse|emissive|emission)[^/]*\.png$", re.I)
+
+
+def estimate_size(rec: AssetRecord, max_res: int, color_jpeg: bool = False) -> int:
     """Rough size of the .blend before converting (only drives Blender's progress bar).
-    Texture file size tells their resolution: big PNGs are 4K and shrink ~3x at 2K."""
+    Texture file size tells their resolution: big PNGs are 4K and shrink ~3x at 2K;
+    color textures as JPEG are about 30% of the PNG."""
     total = 0
     for path, size, _ in rec.files:
         if "/textures/" in path.lower() and path.lower().endswith((".png", ".jpg", ".jpeg")):
+            if color_jpeg and COLOR_TEXTURE.search(path) and size > 100_000:
+                size = int(size * 0.3)
             if max_res and max_res <= 1024:
                 factor = 1.0 if size < 1_500_000 else 0.3 if size < 6_000_000 else 0.1
             elif max_res and max_res <= 2048:
@@ -56,14 +63,16 @@ def estimate_size(rec: AssetRecord, max_res: int) -> int:
     return max(total, 1)
 
 
-def build(index: Index, catalog_paths: dict[str, str], converted, max_res: int) -> dict[str, bytes]:
+def build(index: Index, catalog_paths: dict[str, str], converted, max_res: int,
+          color_jpeg: bool = False) -> dict[str, bytes]:
     """URL path -> body. `converted(rec)` returns the state entry or None."""
+    profile = f"{max_res}-jpeg" if color_jpeg else str(max_res)  # same as Settings.profile
     assets, files = [], []
     for rec in sorted(index.assets.values(), key=lambda r: r.id):
         st = converted(rec)
         id_type, name = (st["id_type"], st["name"]) if st else (rec.id_type, rec.name or rec.id)
-        h = st["hash"] if st else placeholder_hash(rec, max_res)
-        size = st["size"] if st else estimate_size(rec, max_res)
+        h = st["hash"] if st else placeholder_hash(rec, profile)
+        size = st["size"] if st else estimate_size(rec, max_res, color_jpeg)
         entry = {
             "name": name, "id_type": id_type, "files": [blend_relpath(rec)],
             "bl_versions": {"min": common.BLENDER_VERSION},

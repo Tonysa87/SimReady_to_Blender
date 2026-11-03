@@ -110,6 +110,23 @@ class ListingTest(unittest.TestCase):
         h = placeholder_hash(a, 2048)
         self.assertNotEqual(h, placeholder_hash(a, 1024))
         self.assertNotEqual(h, placeholder_hash(rec("x_a01", content_digest="e" * 64), 2048))
+        self.assertNotEqual(h, placeholder_hash(a, "2048-jpeg"))
+
+    def test_jpeg_profile(self):
+        """PNG keeps the old state keys and placeholder hashes; JPEG gets its own, and a smaller estimate."""
+        from simready.server.jobs import Settings
+        from simready.server.listing import estimate_size
+        self.assertEqual(Settings(Path("b"), Path("s"), max_res=2048).profile, "2048")
+        self.assertEqual(Settings(Path("b"), Path("s"), max_res=0, color_jpeg=True).profile, "0-jpeg")
+        self.assertEqual(placeholder_hash(rec("x_a01"), 2048), placeholder_hash(rec("x_a01"), "2048"))
+        r = rec("x_a01", files=[["simready_usd/Textures/t_wood_alb.png", 8_000_000, "a" * 64],
+                                ["simready_usd/Textures/t_wood_nor.png", 8_000_000, "a" * 64]])
+        self.assertLess(estimate_size(r, 0, True), estimate_size(r, 0))
+        a = rec("food_produce_apple_a01")
+        idx = Index(revision="r", assets={a.id: a})
+        paths = Catalogs(TABLE).assign(list(idx.assets))
+        page = json.loads(build(idx, paths, lambda r: None, 2048, True)["/_v1/assets-00000.json"])
+        self.assertEqual(page["files"][0]["hash"], "SHA256:" + placeholder_hash(a, "2048-jpeg"))
 
 
 class RateLimiterTest(unittest.TestCase):
