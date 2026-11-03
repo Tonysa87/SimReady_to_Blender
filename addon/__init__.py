@@ -191,6 +191,9 @@ class SIMREADY_OT_server_start(bpy.types.Operator):
     bl_description = "Start the local SimReady server"
 
     def execute(self, context):
+        if not bpy.app.online_access:
+            self.report({'ERROR'}, "Allow Online Access first (Preferences > System)")
+            return {'CANCELLED'}
         if RUNTIME.snapshot():
             self.report({'INFO'}, "The server is already running")
             return {'CANCELLED'}
@@ -219,6 +222,9 @@ class SIMREADY_OT_check_updates(bpy.types.Operator):
     bl_description = "Ask Hugging Face for a new revision of the dataset now"
 
     def execute(self, context):
+        if not bpy.app.online_access:
+            self.report({'ERROR'}, "Allow Online Access first (Preferences > System)")
+            return {'CANCELLED'}
         RUNTIME.refresh_index()
         return {'FINISHED'}
 
