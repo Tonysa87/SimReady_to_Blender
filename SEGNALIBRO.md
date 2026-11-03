@@ -3,6 +3,7 @@
 > Ponte tra sessioni di Claude Code: si aggiorna con `/segnalibro` prima di `/clear` o a fine
 > giornata. CLAUDE.md lo importa, quindi viene letto all'inizio di ogni sessione.
 > Ultimo aggiornamento: **3/11/2026, sera** (fase 5 chiusa, fase 6 pronta: manca il test su Windows di Tonysa87).
+> **Si riprende la sera del 4/11/2026** da qui: prima cosa, chiedere a Tonysa87 l'esito del test dello zip 0.5.0.
 
 ## Il progetto in breve
 
