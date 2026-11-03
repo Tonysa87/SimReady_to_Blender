@@ -2,7 +2,7 @@
 
 > Ponte tra sessioni di Claude Code: si aggiorna con `/segnalibro` prima di `/clear` o a fine
 > giornata. CLAUDE.md lo importa, quindi viene letto all'inizio di ogni sessione.
-> Ultimo aggiornamento: **2/11/2026, mattina** (fase 5: fatti i punti 3 e 2, a metà i punti 1 e 4).
+> Ultimo aggiornamento: **3/11/2026, sera** (fase 5 chiusa, fase 6 pronta: manca il test su Windows di Tonysa87).
 
 ## Il progetto in breve
 
@@ -13,7 +13,7 @@ un .blend, il server scarica l'asset da HF, lo converte (Blender headless) e lo 
 stessa risposta; poi il listing viene ricaricato con l'hash reale. Un add-on avvierà il server e
 gestirà la libreria. Brief completo: `docs/brief.md`.
 
-Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificato su Windows) · 4 add-on ✅ (verificato su Windows) · **5 robustezza ⏳ (in corso: punti 3 e 2 fatti)** · 6 packaging.
+Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificato su Windows) · 4 add-on ✅ (verificato su Windows) · 5 robustezza ✅ · **6 packaging ⏳ (fatto tutto quello che dipende da Claude; release 0.5.0 in bozza)**.
 
 ## Stato attuale
 
@@ -22,9 +22,11 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 - Gira col **Python incluso in Blender** (pxr, OpenImageIO, numpy, certifi; verificato anche il
   `python.exe` del Blender Windows di Tonysa87). Nessuna dipendenza esterna.
 - La porta 8765 è del server avviato dall'add-on su Windows; in WSL per lo sviluppo si usa la 8790.
-- Test: `python3 -m unittest discover -s tests` (69 test; quelli pxr/zstd/Blender girano col Python di Blender).
-- **Fase 5** in corso, report: `docs/fase5-report.md`. Conversioni riproducibili (stesso hash) ed
-  errori di rete gestiti sono su `main`, **non ancora in uno zip per Windows** (l'add-on resta 0.4.1).
+- Test: `python3 -m unittest discover -s tests` (72 test; quelli pxr/zstd/Blender girano col Python di Blender).
+  Test GUI dell'add-on: `tools/gui_test_addon.py` (14/14 sullo zip 0.5.0, profilo pulito con Data Folder).
+- **Fase 5 chiusa**, report: `docs/fase5-report.md`. **Add-on 0.5.0**: zip in `dist/` e nella cartella
+  di consegna su Windows; **release v0.5.0 in bozza** su GitHub (la pubblica Tonysa87 dopo il test).
+- Materiale per extensions.blender.org: `docs/extensions-platform.md` (lo invia Tonysa87, se vuole).
 - Repository **pubblico**: https://github.com/Tonysa87/SimReady_to_Blender (`main`), push autorizzato.
   Release **v0.4.1** con lo zip: https://github.com/Tonysa87/SimReady_to_Blender/releases/tag/v0.4.1.
   La vecchia storia (con dati personali) resta nel repo privato `SimReady_to_Blender_old_private`.
@@ -48,7 +50,7 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
    `--seed-index`, `--check-hours 24`); **cartella dati scelta nell'add-on** (il server ha già
    un'unica `--state-dir`).
 9. **L'indice di partenza sta nel repo** (`simready/server/data/seed_index.json.gz`, 2,6 MB), usato
-   di default dal server. Aggiornarlo quando cambia la revisione HF (`tools/phase3/make_seed_index.py`).
+   di default dal server. Aggiornarlo quando cambia la revisione HF (`tools/make_seed_index.py`).
 10. Pulizia della vecchia cache `6f0c46218f1e3d46`: autorizzata e fatta (era solo il prototipo di fase 1).
 11. **Niente copia dei .blend nel server** (lo consegna e lo cancella, tiene solo hash/dimensione).
 12. **La cache di Blender va nella cartella scelta dall'utente**: Blender non permette di spostarla
@@ -59,6 +61,12 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 
 2/11/2026:
 15. Piano della fase 5 approvato ("vai pure come ritieni opportuno"): ordine 3 → 2 → 1 → 4.
+
+3/11/2026:
+16. "Vorrei lasciarti finire in autonomia il progetto." In dettaglio:
+    - **JPEG: decide Claude** → fatto come opzione "JPEG Color Textures", **spenta di default**;
+    - **release finale in bozza**: la pubblica Tonysa87 dopo aver provato lo zip su Windows;
+    - **Blender Extensions**: Claude prepara il materiale, l'invio (col suo account) lo fa Tonysa87.
 
 ## Fatti tecnici da non dimenticare
 
@@ -83,37 +91,48 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 - .blend non riproducibili per 4 campi: `ID.session_uid`, `bNode.identifier` (casuale), `Mesh.face_sets_color_seed`
   (secondo corrente), `ScrEdge.v1/v2`; più lo zstd multithread. `blend_normalize.py` li sistema leggendo la DNA
   del file. Gli operatori BMesh (es. sfera UV) non sono riproducibili: nei test usare `from_pydata`.
+- In più (a volte, sui file grandi) **i numeri `old` dei blocchi DATA**: la mappa indirizzo→numero di
+  `writefile.cc` è unica per il file, un buffer temporaneo che riusa memoria di un ID precedente ne prende
+  il numero. Il lettore risolve i puntatori ai dati solo dentro lo stesso ID → `renumber_data` rinumera per
+  ID; anche i `sharing_info` (numeri senza blocco, ignorati in lettura).
+- `Image.file_format = 'JPEG'` + `pack()` impacchetta comunque PNG: il JPEG va scritto con OpenImageIO e
+  ricaricato; poi rimettere `filepath_raw` **e** `packed_files[0].filepath` (se no c'è il percorso temporaneo).
+- numpy in N processi paralleli: impostare `OPENBLAS_NUM_THREADS=1` (altrimenti 16 × 32 thread, carico 290).
+- extensions.blender.org: dati inclusi solo **CC0** (ToS 1.2) → lo zip `--no-seed-index`; senza indice
+  il primo avvio costruisce l'indice da HF (13-40 min).
 - `http.client` non solleva `IncompleteRead` se la connessione cade prima di `Content-Length`: restituisce `b""`.
   Il CDN di HF (`cas-bridge`/`cdn.hf.co`) accetta `Range` anche dopo il redirect (206).
 - Dettagli: `docs/fase1-report.md`, `docs/fase3-report.md`, `docs/ricerca-materiali.md`.
 
-## Ultime cose fatte (2/11/2026, mattina)
+## Ultime cose fatte (3/11/2026)
 
-- **Conversioni riproducibili** (`67bdb86`): `simready/convert/blend_normalize.py` + `save_reproducible`;
-  10 asset casuali riconvertiti da zero = stesso sha256, contenuto identico al salvataggio di Blender.
-  `CONVERTER_VERSION` non cambiato (le cache esistenti restano valide).
-- **Errori di rete** (`b62bfbb`): download ripresi con Range, errori con `kind` e messaggio per l'utente
-  (mostrato dall'add-on), attesa del rate limit visibile, controllo spazio su disco, pulizia all'avvio.
-  Provato anche "senza internet" (proxy finto): errore chiaro in 3 s, libreria navigabile.
-- **Asset enormi** (prima misura): `equipment_robot_trolley_a01` (1,77 GB) → download ~170 s,
-  conversione 18 s, picco RAM 2 GB, .blend 96 MB (solo geometria).
-- **JPEG**: script `tools/phase5/measure_jpeg.py` pronto, prima prova interrotta per tempo (lento sulle 4K).
-- Nulla acceso: server di sviluppo (8790) e misura fermati. Dati di prova nello scratchpad della sessione (temporanei).
+- **Riproducibilità corretta** (`f6900de`): trovata una conversione a 2K su tre con hash diverso
+  (numeri dei blocchi, vedi sopra); ora 4 asset multi-mesh × 3 conversioni e l'asset grande × 4 = stesso hash.
+- **JPEG** (`bd9c948`): 150 albedo a caso, q95 4:4:4 = 26-30% del PNG, PSNR mediano 46 dB, render
+  identici (59 dB). Opzione in add-on/server/convertitore; .blend −23% a 2K, −28% a Max. Chiave di stato
+  `<asset>@2048-jpeg`: con PNG le cache esistenti restano valide.
+- **Asset enormi**: `structure_wall_entrance_a01` (1,1 GB di texture) a Max 12 s, 4,4 GB RAM, 875 MB;
+  a 2K 29 s, 1,7 GB, 252 MB. Stima spazio disco controllata: prudente, lasciata com'è.
+- **Fase 6** (`0089dd0`, `be553fe`): `tools/` ripulito (prototipi solo nella storia, tag v0.4.1), README
+  aggiornato, versione 0.5.0, `--no-seed-index`, Start/Check Updates rifiutati senza Online Access.
+- Zip 0.5.0 in `dist/` e nella cartella di consegna; release v0.5.0 in **bozza** con note.
+- Nulla acceso. Dati di prova (download e .blend) nello scratchpad della sessione, temporanei.
 
 ## Domande aperte per Tonysa87
 
-1. Porta 8765 fissa (Claude propone di tenerla); albedo in JPEG (rimandato alla fase 5, da misurare).
-2. Gruppi dei cataloghi da rivedere a occhio nell'Asset Browser.
+1. Prova dello zip 0.5.0 su Windows, poi pubblicare la bozza della release v0.5.0.
+2. Extensions: nome ("NVIDIA SimReady Library" o "SimReady Asset Library", vedi
+   `docs/extensions-platform.md` §3), screenshot dal suo Blender, invio.
+3. Porta 8765 fissa (Claude propone di tenerla); gruppi dei cataloghi da rivedere a occhio.
 
 ## Prossimi passi
 
-1. **Fase 5, punto 1 (asset enormi)**: convertire un asset grande *con molte texture* a Max e a 2K
-   (memoria, tempo, dimensione del .blend) e rivedere la stima dello spazio su disco in `jobs._space_needed`.
-2. **Fase 5, punto 4 (JPEG)**: far girare `measure_jpeg.py` su un campione (o in parallelo), poi
-   proporre a Tonysa87 numeri e 2-3 render affiancati: decide lui.
-3. Zip 0.5.0 dell'add-on per il test su Windows di Tonysa87: messaggi d'errore in Blender (provare a
-   staccare la rete durante un download), riconversione con stesso hash.
-4. Fase 6 (packaging): pulizia degli script di sviluppo, eventuale Blender Extensions, nuova release.
+1. Test di Tonysa87 su Windows (0.5.0): installare sopra la 0.4.1 (preferenze tenute), scaricare un
+   asset, staccare la rete durante un download grande (deve riprendere o dare un errore chiaro),
+   provare "JPEG Color Textures", riconvertire un asset (stesso hash).
+2. Se va bene: pubblicare la release v0.5.0 (`gh release edit v0.5.0 --draft=false`) e aggiornare il README.
+3. Se Tonysa87 vuole Extensions: seguire `docs/extensions-platform.md` §6.
+4. Manutenzione: quando cambia la revisione HF, rigenerare l'indice (`tools/make_seed_index.py`).
 
 ## Come riprendere
 
