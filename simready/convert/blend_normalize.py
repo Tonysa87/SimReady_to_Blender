@@ -6,11 +6,18 @@ Blender writes a few values that change at every run even when the scene is the 
 - ``ID.session_uid``: a per-session counter (reset by Blender when it reads the file);
 - ``bNode.identifier``: random, seeded from the clock (only has to be unique per tree);
 - ``Mesh.face_sets_color_seed``: hash of the current second (only colors sculpt face sets);
-- ``ScrEdge.v1/v2``: the two vertices of a UI edge, sorted by memory address.
+- ``ScrEdge.v1/v2``: the two vertices of a UI edge, sorted by memory address;
+- the "old address" of data blocks: Blender numbers them per ID from a hash of the ID name,
+  but its address -> number map is shared by the whole file, so a temporary buffer that
+  reuses the memory of one written for an earlier ID takes that earlier number and shifts
+  the following ones (it depends on the memory allocator: it happens now and then on big
+  files). The reader only resolves data pointers within the same ID.
 
 ``normalize()`` patches them in an uncompressed .blend, in place: the session uid is set
 to 0 ("unset"), node identifiers become 1..n in list order, the seed 0 and the two edge
-vertices are sorted by their written value. Field offsets come from the file's own DNA,
+vertices are sorted by their written value, and the data blocks of each ID get new
+numbers from the ID's own number and their position (pointers inside the ID follow).
+Field offsets come from the file's own DNA,
 so a field that does not exist (another Blender version) is simply skipped. Node trees
 that could reference node identifiers (zones, bakes) are left untouched.
 
@@ -20,6 +27,7 @@ at the end), deterministic for the same input. Runs with Blender's Python (``zst
 
 from __future__ import annotations
 
+import hashlib
 import mmap
 import re
 import struct
@@ -118,6 +126,96 @@ def _blocks(buf) -> list[tuple[bytes, int, int, int, int, int]]:
     raise NotSupported("no ENDB block")
 
 
+def _sections(blocks) -> list[tuple[int, list[int]]]:
+    """(head block index, [its DATA block indices]): an ID (or another non-DATA block) and the
+    data written after it. Blender's reader resolves data pointers within one section."""
+    out: list[tuple[int, list[int]]] = []
+    for i, b in enumerate(blocks):
+        if b[0] == b"DATA":
+            if out:
+                out[-1][1].append(i)
+        elif b[0] not in (b"DNA1", b"ENDB"):
+            out.append((i, []))
+    return out
+
+
+def _new_address(seed: bytes, used: set[int]) -> int:
+    """A non-zero 'old address' in Blender's style (low 4 bits 0, top bit 0) not in `used`."""
+    while True:
+        v = (int.from_bytes(hashlib.blake2b(seed, digest_size=8).digest(), "little") << 4) & ((1 << 63) - 1)
+        if v and v not in used:
+            used.add(v)
+            return v
+        seed += b"+"
+
+
+def _sharing_fields(dna: "DNA") -> dict[str, list[int]]:
+    """struct name -> offsets of its `*sharing_info*` pointers. Blender writes them as numbers
+    with no block behind (the reader recreates the sharing info), taken from the same counter."""
+    out: dict[str, list[int]] = {}
+    for name, flds in dna.fields.items():
+        offs = [off for key, (off, _t, size) in flds.items() if "sharing_info" in key and size == 8]
+        if offs:
+            out[name] = offs
+    return out
+
+
+def renumber_data(buf, blocks, dna: "DNA | None" = None) -> dict:
+    """Give the DATA blocks of every section numbers that depend only on the section's head
+    (its own address, stable: Blender derives it from the ID name) and their position, and
+    rewrite the pointers to them found in the section (any aligned 64-bit word equal to an
+    old number: struct pointer fields and pointer arrays alike; a false match would need a
+    60-bit coincidence). Sections with duplicate numbers (corrupt) are left as they are."""
+    import numpy as np
+    stats = {"data_blocks": 0, "pointers": 0, "sections_skipped": 0, "sharing_info": 0}
+    used = {b[2] for b in blocks if b[0] != b"DATA"}
+    sharing = _sharing_fields(dna) if dna else {}
+    for head, data in _sections(blocks):
+        if not data:
+            continue
+        olds = [blocks[i][2] for i in data]
+        if len(set(olds)) != len(olds) or 0 in olds:
+            stats["sections_skipped"] += 1
+            continue
+        hb = blocks[head]
+        seed = hb[0] + struct.pack("<Q", hb[2])
+        table = {old: _new_address(seed + struct.pack("<I", k), used) for k, old in enumerate(olds)}
+        keys = np.fromiter(table, dtype=np.uint64, count=len(table))
+        vals = np.fromiter(table.values(), dtype=np.uint64, count=len(table))
+        order = np.argsort(keys)
+        keys, vals = keys[order], vals[order]
+        for i in (head, *data):
+            off, ln = blocks[i][3], blocks[i][4]
+            if ln < 8:
+                continue
+            words = np.frombuffer(buf, dtype="<u8", count=ln // 8, offset=off)
+            hit = np.isin(words, keys)
+            if hit.any():
+                idx = np.nonzero(hit)[0]
+                new = vals[np.searchsorted(keys, words[idx])]
+                for j, v in zip(idx.tolist(), new.tolist()):
+                    struct.pack_into("<Q", buf, off + 8 * j, v)
+                stats["pointers"] += len(idx)
+        for i in data:
+            struct.pack_into("<Q", buf, blocks[i][3] - BHEAD.size + 8, table[blocks[i][2]])
+        stats["data_blocks"] += len(data)
+        n = 0
+        for i in (head, *data):
+            b = blocks[i]
+            offs = sharing.get(dna.structs[b[1]]) if b[0] not in NO_STRUCT and b[1] < len(dna.structs) else None
+            if not offs or b[5] < 1:
+                continue
+            step = b[4] // b[5]
+            for k in range(b[5]):
+                for o in offs:
+                    pos = b[3] + k * step + o
+                    if pos + 8 <= b[3] + b[4] and struct.unpack_from("<Q", buf, pos)[0]:
+                        struct.pack_into("<Q", buf, pos, _new_address(seed + b"s" + struct.pack("<I", n), used))
+                        n += 1
+        stats["sharing_info"] += n
+    return stats
+
+
 def normalize(path: Path) -> dict:
     """Patch the run-dependent values of an uncompressed .blend in place. Returns counters."""
     stats = {"session_uid": 0, "node_identifier": 0, "face_sets_seed": 0, "screen_edges": 0,
@@ -163,10 +261,18 @@ def normalize(path: Path) -> dict:
         n_idname = dna.field("bNode", "idname", "char")
         if None not in (nodes_off, n_next, n_ident, n_idname):
             idname_size = dna.fields["bNode"]["idname"][2]
-            node_at = {b[2]: b[3] for b in blocks if struct_of(b) == "bNode" and b[5] == 1}
-            for b in blocks:
+            section_of = {}
+            for head, data in _sections(blocks):
+                for i in (head, *data):
+                    section_of[i] = head
+            nodes_in: dict[int, dict[int, int]] = {}  # per section: old address -> data offset
+            for i, b in enumerate(blocks):
+                if struct_of(b) == "bNode" and b[5] == 1:
+                    nodes_in.setdefault(section_of.get(i), {})[b[2]] = b[3]
+            for i, b in enumerate(blocks):
                 if struct_of(b) != "bNodeTree":
                     continue
+                node_at = nodes_in.get(section_of.get(i), {})
                 if refs_num is not None and struct.unpack_from("<i", buf, b[3] + refs_num)[0] != 0:
                     stats["trees_skipped"] += 1
                     continue
@@ -198,6 +304,9 @@ def normalize(path: Path) -> dict:
                         if a > c:
                             struct.pack_into("<QQ", buf, p, c, a)
                         stats["screen_edges"] += 1
+
+        # 5. Data block numbers (last: the steps above look blocks up by their old number).
+        stats.update(renumber_data(buf, blocks, dna))
         buf.flush()
     return stats
 

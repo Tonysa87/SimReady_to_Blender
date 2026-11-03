@@ -97,6 +97,41 @@ class Reproducible(unittest.TestCase):
                               seen["materials"][m]["links"])
                 self.assertEqual(len(seen["materials"][m]["links"]), 3)
 
+    @unittest.skipUnless(HAS_ZSTD, "zstandard not available (run with Blender's Python)")
+    def test_shifted_data_addresses(self):
+        """Blender sometimes numbers an ID's data blocks differently (a temporary buffer reusing
+        memory of an earlier ID takes its number): after normalize() the bytes are the same."""
+        with tempfile.TemporaryDirectory() as tmp:
+            a, ra, rb, res = Path(tmp, "a.blend"), Path(tmp, "a.raw"), Path(tmp, "b.raw"), Path(tmp, "c.json")
+            run_blender("build", str(a))
+            bn.decompress(a, ra)
+            buf = bytearray(ra.read_bytes())
+            blocks = bn._blocks(buf)
+            head, data = next(sec for sec in bn._sections(blocks) if len(sec[1]) >= 3)
+            # shift: every data block of this ID gets another number, pointers follow
+            for i in data:
+                old = blocks[i][2]
+                new = old + 0x1230
+                for j in (head, *data):
+                    off, ln = blocks[j][3], blocks[j][4]
+                    for k in range(0, ln - 7, 8):
+                        if struct.unpack_from("<Q", buf, off + k)[0] == old:
+                            struct.pack_into("<Q", buf, off + k, new)
+                struct.pack_into("<Q", buf, blocks[i][3] - bn.BHEAD.size + 8, new)
+            rb.write_bytes(bytes(buf))
+            self.assertNotEqual(ra.read_bytes(), rb.read_bytes())
+            stats = bn.normalize(ra)
+            bn.normalize(rb)
+            self.assertGreater(stats["data_blocks"], 0)
+            self.assertEqual(stats["sections_skipped"], 0)
+            self.assertEqual(ra.read_bytes(), rb.read_bytes())
+            # the normalized file is still read correctly
+            bn.compress(rb, a)
+            run_blender("check", str(a), str(res))
+            seen = json.loads(res.read_text())
+            self.assertEqual(seen["objects"], ["part_0", "part_1"])
+            self.assertEqual(seen["images"], [["albedo", True, [64, 64]]])
+
 
 if __name__ == "__main__":
     unittest.main()
