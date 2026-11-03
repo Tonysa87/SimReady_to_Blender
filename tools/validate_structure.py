@@ -4,12 +4,12 @@
 Run with Blender's bundled Python (it has pxr), from the repository root:
 
   PY=~/blender/blender-5.2.2-linux-x64/5.2/python/bin/python3.13
-  $PY -I tools/phase3/validate_structure.py fetch-text  [--assets a,b | --all]
-  $PY -I tools/phase3/validate_structure.py predict     --out PRED.jsonl [--all]
-  $PY -I tools/phase3/validate_structure.py sample      --n 130 --out SAMPLE.txt [--seed 1]
-  $PY -I tools/phase3/validate_structure.py fetch-payloads --list SAMPLE.txt [--max-mb 300]
-  $PY -I tools/phase3/validate_structure.py convert     --list SAMPLE.txt --scratch DIR [--jobs 3]
-  $PY -I tools/phase3/validate_structure.py compare     --list SAMPLE.txt --scratch DIR
+  $PY -I tools/validate_structure.py fetch-text  [--assets a,b | --all]
+  $PY -I tools/validate_structure.py predict     --out PRED.jsonl [--all]
+  $PY -I tools/validate_structure.py sample      --n 130 --out SAMPLE.txt [--seed 1]
+  $PY -I tools/validate_structure.py fetch-payloads --list SAMPLE.txt [--max-mb 300]
+  $PY -I tools/validate_structure.py convert     --list SAMPLE.txt --scratch DIR [--jobs 3]
+  $PY -I tools/validate_structure.py compare     --list SAMPLE.txt --scratch DIR
 
 Downloads go to cache/raw/<asset>/<relpath> (mirror of the dataset at REV),
 verified against the BOM sha256, paced well below the Hugging Face "resolvers"
@@ -37,7 +37,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from simready.server import structure  # noqa: E402

@@ -24,7 +24,7 @@ Stato del progetto, decisioni e prossimi passi (letti a ogni avvio di sessione):
 - WSL2 (Ubuntu 26.04). Blender 5.2 Linux: `~/blender/blender-5.2.2-linux-x64/blender`.
   Tonysa87 usa Blender 5.2 su **Windows**; da Windows `127.0.0.1:<porta>` raggiunge i server in WSL.
 - Blender con interfaccia in WSL: `env WAYLAND_DISPLAY= ...` (X11, llvmpipe). Gli screenshot
-  vengono neri: le verifiche visive si fanno con render Cycles (`tools/phase2/render_check.py`)
+  vengono neri: le verifiche visive si fanno con render Cycles (`tools/render_check.py`)
   o sul Blender di Tonysa87.
 - Isolare i test GUI: `BLENDER_USER_RESOURCES=<scratch> XDG_CACHE_HOME=<scratch>`, `--factory-startup --online-mode`.
 - Python di sistema con numpy/PIL: lanciare con `python3 -P` dalla cartella del progetto

@@ -2,7 +2,7 @@
 """GUI test of the installed add-on (phase 4), run inside a GUI Blender:
 
   env WAYLAND_DISPLAY= BLENDER_USER_RESOURCES=R XDG_CACHE_HOME=X blender --online-mode \
-      --python tools/phase4/gui_test_addon.py -- --asset kitchenware_bowl_b01 --collection-asset ppe_eyeProtection_goggles_a01
+      --python tools/gui_test_addon.py -- --asset kitchenware_bowl_b01 --collection-asset ppe_eyeProtection_goggles_a01
 
 Checks: server started by the add-on, one library registered, Blender's cache folder is a
 link into the data folder, a download is converted and the listing is reloaded by the

@@ -5,7 +5,7 @@ CC-BY-4.0) directly in **Blender 5.2's Asset Browser**, as a remote asset librar
 All assets show up right away, with thumbnails and catalogs; when you download one, it is fetched
 from Hugging Face and **converted to .blend on the spot**.
 
-> Status: **0.4.1, tested on Blender 5.2 (Windows 11)**. Experimental. Made with Claude.
+> Status: **0.5.0** (0.4.1 tested on Blender 5.2, Windows 11). Experimental. Made with Claude.
 > Download the add-on from the [Releases](https://github.com/Tonysa87/SimReady_to_Blender/releases).
 
 ## Credits
@@ -44,6 +44,7 @@ All 3D assets are by **NVIDIA Corporation**: the
 |---|---|
 | Data Folder | Where everything is stored: server index, thumbnails, Blender's cache of downloaded assets |
 | Texture Size | Max (original, up to 4K) / 2K / 1K, applied when an asset is converted |
+| JPEG Color Textures | Off by default. On: opaque albedo/emission textures are packed as JPEG (quality 95), .blend files ~25% smaller with no visible difference; normal, roughness and other data textures always stay PNG |
 | Import | *Pack* (Blender's default) or *Append, editable* (instances made real, SimReady data made local) |
 | Prepare all thumbnails | Builds every thumbnail in the background (~1.3 GB from Hugging Face once, ~25 MB on disk) |
 | Start automatically / Port | The local server starts with Blender on `127.0.0.1:8765` |
@@ -58,6 +59,13 @@ All 3D assets are by **NVIDIA Corporation**: the
   afterwards (no Shift+Refresh needed).
 - Drag & drop of an asset that is not downloaded yet is blocked by Blender itself: download it
   first with the button on its tile.
+- The biggest assets (~1 GB of 4K textures) need 4-5 GB of free RAM while they are converted at
+  Max; at 2K about 2 GB. The server checks the free disk space before downloading and tells you
+  how much is needed.
+- If the connection drops, downloads resume where they stopped; errors (offline, Hugging Face
+  rate limit, disk full...) are shown in the status bar and in the add-on preferences.
+- Converting the same asset again gives the very same file (same hash), so a copy already in
+  Blender's cache stays valid.
 
 ## How it works
 
@@ -93,11 +101,15 @@ The conversion (`simready/convert/convert_asset.py`, run by `blender -b`):
 | `addon/` | Blender add-on (preferences, server start, library, cache, editable import) |
 | `simready/convert/` | USD → .blend converter |
 | `simready/server/` | remote library server: HF index, catalogs, thumbnails, conversions, listing |
-| `simready/server/data/seed_index.json.gz` | ready index of the 2,677 assets (NVIDIA file names, sizes, SHA-256, CC-BY-4.0); rebuilt with `tools/phase3/make_seed_index.py` |
+| `simready/server/data/seed_index.json.gz` | ready index of the 2,677 assets (NVIDIA file names, sizes, SHA-256, CC-BY-4.0); rebuilt with `tools/make_seed_index.py` |
 | `tests/` | tests for materials, server, structure prediction and cache link |
 | `tools/build_extension.py` | builds the extension .zip in `dist/` |
-| `tools/phase1/` … `tools/phase4/` | development prototypes, experiments and GUI tests |
-| `tools/recon/` | Hugging Face dataset reconnaissance scripts |
+| `tools/render_check.py`, `tools/montage.py` | Cycles renders of a converted asset and side-by-side comparisons |
+| `tools/gui_test_addon.py` | GUI test of the installed add-on (Blender with interface) |
+| `tools/validate_structure.py` | checks the Object/Collection prediction against the real converter |
+| `tools/measure_jpeg.py` | PNG vs JPEG size and quality on albedo textures |
+| `tools/make_seed_index.py` | rebuilds the seed index from a server's index |
+| (git tag `v0.4.1`) | the phase 1-4 prototypes and dataset reconnaissance scripts cited in `docs/` |
 | `docs/` | development reports and research notes (in Italian) |
 | `SEGNALIBRO.md`, `CLAUDE.md` | development notes for the author and Claude Code (in Italian) |
 

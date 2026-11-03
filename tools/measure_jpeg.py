@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Phase 5, point 4: what would albedo textures in JPEG save, and what would they lose?
 
-    python3 -P tools/phase5/measure_jpeg.py <raw folder> [<raw folder> ...] [--out result.json]
+    python3 -P tools/measure_jpeg.py <raw folder> [<raw folder> ...] [--out result.json] [--jobs N]
 
 For every albedo PNG found under the given folders (downloaded assets, untrusted: only read
 as images): size of the original, then at 2048 px and at the original size, PNG (zlib 6)
@@ -12,13 +12,17 @@ Needs numpy and Pillow (system Python).
 
 import argparse
 import io
+import os
 import json
 import re
 import sys
 from pathlib import Path
 
-import numpy as np
-from PIL import Image
+for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_v, "1")  # one thread per worker process (set before numpy loads)
+
+import numpy as np  # noqa: E402
+from PIL import Image  # noqa: E402
 
 ALBEDO = re.compile(r"(alb|albedo|basecolor|base_color|diffuse)", re.I)
 Image.MAX_IMAGE_PIXELS = 1 << 28
@@ -81,21 +85,30 @@ def measure(path: Path) -> dict:
     return out
 
 
+def _safe_measure(path: Path) -> dict | None:
+    try:
+        return measure(path)
+    except Exception as e:  # damaged or odd file: skip, report
+        print(f"skip {path}: {e}", file=sys.stderr)
+        return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("roots", nargs="+", type=Path)
     ap.add_argument("--out", type=Path)
+    ap.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) // 2))
     args = ap.parse_args()
     files = sorted({p for r in args.roots for p in r.rglob("*.png")
                     if ALBEDO.search(p.name) and ".thumbs" not in p.parts})
     rows = []
-    for p in files:
-        try:
-            rows.append(measure(p))
-        except Exception as e:  # damaged or odd file: skip, report
-            print(f"skip {p}: {e}", file=sys.stderr)
+    from concurrent.futures import ProcessPoolExecutor
+    with ProcessPoolExecutor(args.jobs) as ex:
+        results = list(ex.map(_safe_measure, files))
+    for r in results:
+        if r is None:
             continue
-        r = rows[-1]
+        rows.append(r)
         if r["alpha"]:
             print(f"{r['file']:60s} {r['size']} alpha -> stays PNG")
         else:

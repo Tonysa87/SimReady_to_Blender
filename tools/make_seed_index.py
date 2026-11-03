@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Write the seed index shipped in the repo from a server's complete index.
 
-python3 tools/phase3/make_seed_index.py <state-dir>/index/index.json
+python3 tools/make_seed_index.py <state-dir>/index/index.json
 
 The output (simready/server/data/seed_index.json.gz) is deterministic: same
 index -> same bytes, so git only changes when the dataset changes.
