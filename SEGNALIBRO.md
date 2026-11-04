@@ -2,8 +2,8 @@
 
 > Ponte tra sessioni di Claude Code: si aggiorna con `/segnalibro` prima di `/clear` o a fine
 > giornata. CLAUDE.md lo importa, quindi viene letto all'inizio di ogni sessione.
-> Ultimo aggiornamento: **3/11/2026, sera** (fase 5 chiusa, fase 6 pronta: manca il test su Windows di Tonysa87).
-> **Si riprende la sera del 4/11/2026** da qui: prima cosa, chiedere a Tonysa87 l'esito del test dello zip 0.5.0.
+> Ultimo aggiornamento: **4/11/2026, sera** (test su Windows superato, **release v0.5.0 pubblicata**).
+> **Il progetto è fermo alla 0.5**: tutte le fasi chiuse, restano solo cose facoltative (vedi Prossimi passi).
 
 ## Il progetto in breve
 
@@ -14,7 +14,7 @@ un .blend, il server scarica l'asset da HF, lo converte (Blender headless) e lo 
 stessa risposta; poi il listing viene ricaricato con l'hash reale. Un add-on avvierà il server e
 gestirà la libreria. Brief completo: `docs/brief.md`.
 
-Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificato su Windows) · 4 add-on ✅ (verificato su Windows) · 5 robustezza ✅ · **6 packaging ⏳ (fatto tutto quello che dipende da Claude; release 0.5.0 in bozza)**.
+Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificato su Windows) · 4 add-on ✅ (verificato su Windows) · 5 robustezza ✅ · 6 packaging ✅ (release 0.5.0 pubblicata il 4/11/2026).
 
 ## Stato attuale
 
@@ -25,11 +25,11 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
 - La porta 8765 è del server avviato dall'add-on su Windows; in WSL per lo sviluppo si usa la 8790.
 - Test: `python3 -m unittest discover -s tests` (72 test; quelli pxr/zstd/Blender girano col Python di Blender).
   Test GUI dell'add-on: `tools/gui_test_addon.py` (14/14 sullo zip 0.5.0, profilo pulito con Data Folder).
-- **Fase 5 chiusa**, report: `docs/fase5-report.md`. **Add-on 0.5.0**: zip in `dist/` e nella cartella
-  di consegna su Windows; **release v0.5.0 in bozza** su GitHub (la pubblica Tonysa87 dopo il test).
+- **Fase 5 chiusa**, report: `docs/fase5-report.md`. **Add-on 0.5.0**: zip in `dist/`, nella cartella
+  di consegna su Windows e nella **release v0.5.0 pubblicata** (Latest); installato sul Blender di Tonysa87.
 - Materiale per extensions.blender.org: `docs/extensions-platform.md` (lo invia Tonysa87, se vuole).
 - Repository **pubblico**: https://github.com/Tonysa87/SimReady_to_Blender (`main`), push autorizzato.
-  Release **v0.4.1** con lo zip: https://github.com/Tonysa87/SimReady_to_Blender/releases/tag/v0.4.1.
+  Release **v0.5.0** con lo zip: https://github.com/Tonysa87/SimReady_to_Blender/releases/tag/v0.5.0.
   La vecchia storia (con dati personali) resta nel repo privato `SimReady_to_Blender_old_private`.
 
 ## Decisioni di Tonysa87
@@ -69,6 +69,11 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
     - **release finale in bozza**: la pubblica Tonysa87 dopo aver provato lo zip su Windows;
     - **Blender Extensions**: Claude prepara il materiale, l'invio (col suo account) lo fa Tonysa87.
 
+4/11/2026:
+17. Test su Windows della 0.5.0 superato; il test "rete staccata" **non si fa e non importa**: Tonysa87 non
+    vuole staccare nulla dal PC (la ripresa resta coperta da `tests/test_hf.py`). Release pubblicata,
+    **progetto fermo alla 0.5**.
+
 ## Fatti tecnici da non dimenticare
 
 - Libreria remota: si crea solo con `bpy.ops.preferences.asset_library_add(type='REMOTE', ...)`.
@@ -103,37 +108,33 @@ Fasi: 1 meccanismo ✅ · 2 convertitore ✅ · 3 server completo ✅ (verificat
   il primo avvio costruisce l'indice da HF (13-40 min).
 - `http.client` non solleva `IncompleteRead` se la connessione cade prima di `Content-Length`: restituisce `b""`.
   Il CDN di HF (`cas-bridge`/`cdn.hf.co`) accetta `Range` anche dopo il redirect (206).
+- Cambiando Texture Size o JPEG il listing si aggiorna, ma Blender non segna l'asset già scaricato e il
+  drag usa la copia vecchia finché non si fa Shift+refresh o un riavvio: solo allora compare il warning.
 - Dettagli: `docs/fase1-report.md`, `docs/fase3-report.md`, `docs/ricerca-materiali.md`.
 
-## Ultime cose fatte (3/11/2026)
+## Ultime cose fatte (4/11/2026)
 
-- **Riproducibilità corretta** (`f6900de`): trovata una conversione a 2K su tre con hash diverso
-  (numeri dei blocchi, vedi sopra); ora 4 asset multi-mesh × 3 conversioni e l'asset grande × 4 = stesso hash.
-- **JPEG** (`bd9c948`): 150 albedo a caso, q95 4:4:4 = 26-30% del PNG, PSNR mediano 46 dB, render
-  identici (59 dB). Opzione in add-on/server/convertitore; .blend −23% a 2K, −28% a Max. Chiave di stato
-  `<asset>@2048-jpeg`: con PNG le cache esistenti restano valide.
-- **Asset enormi**: `structure_wall_entrance_a01` (1,1 GB di texture) a Max 12 s, 4,4 GB RAM, 875 MB;
-  a 2K 29 s, 1,7 GB, 252 MB. Stima spazio disco controllata: prudente, lasciata com'è.
-- **Fase 6** (`0089dd0`, `be553fe`): `tools/` ripulito (prototipi solo nella storia, tag v0.4.1), README
-  aggiornato, versione 0.5.0, `--no-seed-index`, Start/Check Updates rifiutati senza Online Access.
-- Zip 0.5.0 in `dist/` e nella cartella di consegna; release v0.5.0 in **bozza** con note.
-- Nulla acceso. Dati di prova (download e .blend) nello scratchpad della sessione, temporanei.
+- **Test su Windows dello zip 0.5.0** con Tonysa87, asset `sofa_soft_b02`, nessun errore nel log:
+  - installazione sopra la 0.4.1: preferenze tenute, server ripartito da solo;
+  - download: conversione 20 s, 124,8 MB, hash reale nel listing;
+  - JPEG: 100,7 MB (−19%), nessuna differenza a vista anche da vicino;
+  - riconversione da zero: stesso hash (`ce45eae1…`) e stessa dimensione.
+- README (`5a6c4da`): 0.5.0 testata su Windows, nota sul cambio di impostazioni, JPEG tra le modifiche CC-BY.
+- **Release v0.5.0 pubblicata**: tag su `5a6c4da`, zip pubblico uguale a `dist/`.
+- In WSL nulla acceso. Su Windows il server è dell'add-on; JPEG lasciata spenta, divano in cache in PNG.
 
 ## Domande aperte per Tonysa87
 
-1. Prova dello zip 0.5.0 su Windows, poi pubblicare la bozza della release v0.5.0.
-2. Extensions: nome ("NVIDIA SimReady Library" o "SimReady Asset Library", vedi
+1. Extensions: nome ("NVIDIA SimReady Library" o "SimReady Asset Library", vedi
    `docs/extensions-platform.md` §3), screenshot dal suo Blender, invio.
-3. Porta 8765 fissa (Claude propone di tenerla); gruppi dei cataloghi da rivedere a occhio.
+2. Porta 8765 fissa (Claude propone di tenerla); gruppi dei cataloghi da rivedere a occhio.
 
 ## Prossimi passi
 
-1. Test di Tonysa87 su Windows (0.5.0): installare sopra la 0.4.1 (preferenze tenute), scaricare un
-   asset, staccare la rete durante un download grande (deve riprendere o dare un errore chiaro),
-   provare "JPEG Color Textures", riconvertire un asset (stesso hash).
-2. Se va bene: pubblicare la release v0.5.0 (`gh release edit v0.5.0 --draft=false`) e aggiornare il README.
-3. Se Tonysa87 vuole Extensions: seguire `docs/extensions-platform.md` §6.
-4. Manutenzione: quando cambia la revisione HF, rigenerare l'indice (`tools/make_seed_index.py`).
+Nulla di obbligatorio: il progetto è fermo alla 0.5. Se Tonysa87 vuole riprenderlo:
+
+1. Extensions: seguire `docs/extensions-platform.md` §6.
+2. Manutenzione: quando cambia la revisione HF, rigenerare l'indice (`tools/make_seed_index.py`).
 
 ## Come riprendere
 
