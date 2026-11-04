@@ -5,7 +5,7 @@ CC-BY-4.0) directly in **Blender 5.2's Asset Browser**, as a remote asset librar
 All assets show up right away, with thumbnails and catalogs; when you download one, it is fetched
 from Hugging Face and **converted to .blend on the spot**.
 
-> Status: **0.5.0** (0.4.1 tested on Blender 5.2, Windows 11). Experimental. Made with Claude.
+> Status: **0.5.0** (tested on Blender 5.2, Windows 11). Experimental. Made with Claude.
 > Download the add-on from the [Releases](https://github.com/Tonysa87/SimReady_to_Blender/releases).
 
 ## Credits
@@ -19,7 +19,7 @@ All 3D assets are by **NVIDIA Corporation**: the
   Hugging Face to the user's computer when needed.
 - **Changes made** (as required by CC-BY-4.0): USD files are converted to `.blend`;
   OmniPBR/OmniGlass/UsdPreviewSurface materials are translated to Principled BSDF; textures can be
-  downscaled (2K/1K); physics variants and USD instancing are removed; thumbnails are resized to
+  downscaled (2K/1K) or stored as JPEG; physics variants and USD instancing are removed; thumbnails are resized to
   256 px; single-mesh assets take the asset's name.
 - This project is not affiliated with or endorsed by NVIDIA.
 - Every converted asset carries author (NVIDIA), license (CC-BY-4.0), copyright and a link to its
@@ -64,6 +64,9 @@ All 3D assets are by **NVIDIA Corporation**: the
   how much is needed.
 - If the connection drops, downloads resume where they stopped; errors (offline, Hugging Face
   rate limit, disk full...) are shown in the status bar and in the add-on preferences.
+- After changing *Texture Size* or *JPEG Color Textures*, assets already downloaded keep working
+  with the old settings. Blender marks them as outdated only after Shift+Refresh in the Asset
+  Browser or a restart; download them again to apply the new settings.
 - Converting the same asset again gives the very same file (same hash), so a copy already in
   Blender's cache stays valid.
 
